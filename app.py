@@ -654,10 +654,10 @@ def process1():
                 else:
                     # Separator found
                     if current_file:
+                        yield from file_saved_on_server(filename)
                         current_file.write(pending[i:sep_index])
                         current_file.close()
                         current_file = None
-                        yield from file_saved_on_server(filename)
 
 
                     i = sep_index + SEP_LEN
@@ -674,9 +674,9 @@ def process1():
 
     if state == STATE_CONTENT and current_file:
         # Write remaining bytes (not a separator)
+        yield from file_saved_on_server(filename)
         current_file.write(pending)
         current_file.close()
-        yield from file_saved_on_server(filename)
 
     elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
         logger.warning("Incomplete header at end of stream")

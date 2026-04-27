@@ -341,6 +341,7 @@ class ThreadSafeFileProcessor:
 
         use_separator = True
         searchname      = self.getParts(form,"fname",'')
+        _server         = self.getParts(form,"server",'')
         if searchname != '':
             use_separator = False
             path_list = [f for f in path_list if searchname in f]
@@ -349,7 +350,7 @@ class ThreadSafeFileProcessor:
             utc_time_now = int( float(time.time()) )
             if (self.last_time_run is None) or (utc_time_now - self.last_time_run >= self.INTERVAL ):
                 self.last_time_run = utc_time_now
-                yield from yieldString("url::mg/web_page/me.html/processpage?yield_to_remote=1")
+                yield from yieldString("url::mg/web_page/me.html/processpage?yield_to_remote=1&_server{_server}")
                 # yield from yieldString("url::mg/pythonanywhere_api/talentors2/webapps")
                 # yield from yieldString("url::mg/pythonanywhere_api/talentors2/update")
                 # update last run

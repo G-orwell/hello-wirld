@@ -545,7 +545,7 @@ def file_saved_on_server( filename):
 
     filename = split_remove_first_join(filename,plist.splitter)
     filename2 = filename.replace(".comp","")
-    s = f"url::mg/file/{filename2}/insert?saved_on_server=1&file_to_delete={filename}&time_reached_server={int(float(time.time()))}&upload_record=0&size_in_server={str(size)}"
+    s = f"url::mg/file/{filename2}/insert?saved_on_server=1&file_to_delete={filename},{filename2}&time_reached_server={int(float(time.time()))}&upload_record=0&size_in_server={str(size)}"
 
     yield from yieldString(s)
 

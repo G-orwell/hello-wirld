@@ -600,6 +600,7 @@ def process1():
             abort(500, description="File creation error")
         finally:
             filename_buf.clear()
+        print(f"DEBUG: Opened file {filename}", flush=True)
 
     while True:
         chunk = stream.read(plist.CHUNK_SIZE)
@@ -655,6 +656,7 @@ def process1():
                         break
                 else:
                     # Separator found
+                    print(f"DEBUG: Separator found at {sep_index}, current_file = {current_file}", flush=True)
                     if current_file:
                         current_file.write(pending[i:sep_index])
                         current_file.close()
@@ -692,7 +694,10 @@ def process1():
     #         logger.warning("Incomplete header at end of stream")
     #         abort(400, description="Incomplete upload stream")
     # ----------- END OF STREAM -----------
+    # At the end of stream
+    print(f"DEBUG: EOF - state={state}, current_file={current_file}, pending_len={len(pending)}", flush=True)
     if state == STATE_CONTENT and current_file:
+        print(f"DEBUG: Final file write for {filename}", flush=True)
         current_file.write(pending)
         current_file.close()
         yield from file_saved_on_server(filename)   # move this before write? but keep as you have

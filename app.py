@@ -138,7 +138,7 @@ class ThreadSafeFileProcessor:
             for filename in filenames:
                 src = os.path.join(self.directory_path, filename)
                 if os.path.getsize(src) == 0:
-                    print("Adding an empty file not allowed::>>", src)
+                    #print("Adding an empty file not allowed::>>", src)
                     continue
 
                 if filename.find(".html") != -1:
@@ -533,7 +533,7 @@ def split_remove_first_join(text, splitter):
     return splitter.join(parts[1:])  # remove first and re-join
 
 def file_saved_on_server( filename):
-    print("saving file on server  ",filename);
+    # print("saving file on server  ",filename);
     size = 0
     path = os.path.join(plist.directory_path, filename)
     if os.path.exists(path):
@@ -554,7 +554,7 @@ def process1():
     # print("request.headers == ",request.headers)
     form.update(request.args.to_dict())
     form.update(dict(request.headers))
-    print("new request received ");
+    # print("new request received ");
 
     stream = request.stream
     if not stream:
@@ -600,7 +600,7 @@ def process1():
             abort(500, description="File creation error")
         finally:
             filename_buf.clear()
-        print(f"DEBUG: Opened file {filename}", flush=True)
+        # print(f"DEBUG: Opened file {filename}", flush=True)
 
     while True:
         chunk = stream.read(plist.CHUNK_SIZE)
@@ -656,7 +656,7 @@ def process1():
                         break
                 else:
                     # Separator found
-                    print(f"DEBUG: Separator found at {sep_index}, current_file = {current_file}", flush=True)
+                    # print(f"DEBUG: Separator found at {sep_index}, current_file = {current_file}", flush=True)
                     if current_file:
                         current_file.write(pending[i:sep_index])
                         current_file.close()
@@ -695,9 +695,9 @@ def process1():
     #         abort(400, description="Incomplete upload stream")
     # ----------- END OF STREAM -----------
     # At the end of stream
-    print(f"DEBUG: EOF - state={state}, current_file={current_file}, pending_len={len(pending)}", flush=True)
+    # print(f"DEBUG: EOF - state={state}, current_file={current_file}, pending_len={len(pending)}", flush=True)
     if state == STATE_CONTENT and current_file:
-        print(f"DEBUG: Final file write for {filename}", flush=True)
+        # print(f"DEBUG: Final file write for {filename}", flush=True)
         current_file.write(pending)
         current_file.close()
         yield from file_saved_on_server(filename)   # move this before write? but keep as you have

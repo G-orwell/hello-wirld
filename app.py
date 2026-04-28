@@ -533,6 +533,7 @@ def split_remove_first_join(text, splitter):
     return splitter.join(parts[1:])  # remove first and re-join
 
 def file_saved_on_server( filename):
+    print("saving file on server  ",filename);
     size = 0
     path = os.path.join(plist.directory_path, filename)
     if os.path.exists(path):
@@ -553,6 +554,7 @@ def process1():
     # print("request.headers == ",request.headers)
     form.update(request.args.to_dict())
     form.update(dict(request.headers))
+    print("new request received ");
 
     stream = request.stream
     if not stream:
@@ -680,7 +682,7 @@ def process1():
 
     elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
         logger.warning("Incomplete header at end of stream")
-        # abort(400, description="Incomplete upload stream")
+        abort(400, description="Incomplete upload stream")
         return form
 
     return form

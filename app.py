@@ -674,20 +674,33 @@ def process1():
 
     # ----------- END OF STREAM -----------
 
+    # if state == STATE_CONTENT and current_file:
+    #     # Write remaining bytes (not a separator)
+    #     current_file.write(pending)
+    #     current_file.close()
+    #     yield from file_saved_on_server(filename)
+
+    # elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
+    #     # logger.warning("Incomplete header at end of stream")
+    #     # abort(400, description="Incomplete upload stream")
+    #     # return form        
+    #     # If there is truly no incomplete header data, ignore
+    #     if len(filename_len_buf) == 0 and len(filename_buf) == 0:
+    #         # Normal end after a trailing separator
+    #         return form
+    #     else:
+    #         logger.warning("Incomplete header at end of stream")
+    #         abort(400, description="Incomplete upload stream")
+    # ----------- END OF STREAM -----------
     if state == STATE_CONTENT and current_file:
-        # Write remaining bytes (not a separator)
         current_file.write(pending)
         current_file.close()
-        yield from file_saved_on_server(filename)
-
+        yield from file_saved_on_server(filename)   # move this before write? but keep as you have
     elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
-        # logger.warning("Incomplete header at end of stream")
-        # abort(400, description="Incomplete upload stream")
-        # return form        
-        # If there is truly no incomplete header data, ignore
-        if len(filename_len_buf) == 0 and len(filename_buf) == 0:
-            # Normal end after a trailing separator
-            return form
+        # If we are waiting for a header but no bytes were read, it's a clean trailing separator
+        if len(filename_len_buf) == 0 and len(filename_buf) == 0 and len(pending) == 0:
+            # Normal end after separator – nothing to do
+            pass
         else:
             logger.warning("Incomplete header at end of stream")
             abort(400, description="Incomplete upload stream")

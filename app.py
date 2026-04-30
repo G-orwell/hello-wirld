@@ -532,7 +532,7 @@ def split_remove_first_join(text, splitter):
         return ""  # nothing left after removing first element
     return splitter.join(parts[1:])  # remove first and re-join
 
-def file_saved_on_server( filename):
+def file_saved_on_server( filename , server_name):
     # print("saving file on server  ",filename);
     size = 0
     path = os.path.join(plist.directory_path, filename)
@@ -545,7 +545,7 @@ def file_saved_on_server( filename):
 
     filename = split_remove_first_join(filename,plist.splitter)
     filename2 = filename.replace(".comp","")
-    s = f"url::mg/file/{filename2}/insert?saved_on_server=1&file_to_delete={filename},{filename2}&time_reached_server={int(float(time.time()))}&upload_record=0&size_in_server={str(size)}"
+    s = f"url::mg/file/{filename2}/insert?saved_on_server=1&file_to_delete={filename},{filename2}&time_reached_server={int(float(time.time()))}&upload_record=0&size_in_server={str(size)}&server_name={server_name}"
 
     yield from yieldString(s)
 
@@ -555,6 +555,7 @@ def process1():
     form.update(request.args.to_dict())
     form.update(dict(request.headers))
     # print("new request received ");
+    server_name         = self.getParts(form,"server",'')
 
     stream = request.stream
     if not stream:
@@ -661,7 +662,7 @@ def process1():
                         current_file.write(pending[i:sep_index])
                         current_file.close()
                         current_file = None
-                        yield from file_saved_on_server(filename)
+                        yield from file_saved_on_server(filename,server_name)
 
 
                     i = sep_index + SEP_LEN
@@ -700,7 +701,7 @@ def process1():
         # print(f"DEBUG: Final file write for {filename}", flush=True)
         current_file.write(pending)
         current_file.close()
-        yield from file_saved_on_server(filename)   # move this before write? but keep as you have
+        yield from file_saved_on_server(filename,server_name)   # move this before write? but keep as you have
     elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
         # If we are waiting for a header but no bytes were read, it's a clean trailing separator
         if len(filename_len_buf) == 0 and len(filename_buf) == 0 and len(pending) == 0:

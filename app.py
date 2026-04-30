@@ -555,7 +555,7 @@ def process1():
     form.update(request.args.to_dict())
     form.update(dict(request.headers))
     # print("new request received ");
-    server_name         = self.getParts(form,"server",'')
+    server_name         = plist.getParts(form,"server",'')
 
     stream = request.stream
     if not stream:

@@ -250,7 +250,7 @@ class ThreadSafeFileProcessor:
         return data
     def getFiles(self, form):
         # online = self.getParts(form, 'Online', utc_time_now - 15)
-        utc_time_now = int(time.time())]
+        utc_time_now = int(time.time())
 
         default_online = str(utc_time_now - 15)
         online = request.headers.get("online", default_online)

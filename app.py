@@ -249,8 +249,10 @@ class ThreadSafeFileProcessor:
             data = default
         return data
     def getFiles(self, form):
+        # online = self.getParts(form, 'Online', utc_time_now - 15)
+        online = request.headers.get("online", "")
         utc_time_now = int(time.time())
-        utc_min_timestamp = int(float(self.getParts(form, 'Online', utc_time_now - 15)))
+        utc_min_timestamp = int(float(online))
 
         with self.lock:
             # client-based candidates
@@ -550,10 +552,12 @@ def process1():
     form = {}
     # print("request.headers == ",request.headers)
     form.update(request.args.to_dict())
-    form.update(dict(request.headers))
+    # form.update(dict(request.headers))
     # print("new request received ");
-    server_name         = plist.getParts(form,"servername",'')
+    # server_name         = plist.getParts(form,"servername",'')
+    server_name         = request.headers.get("servername", "")
     if server_name == "":
+        print(request.headers)
         abort(400, description="Server name not provided")
 
     stream = request.stream

@@ -22,7 +22,6 @@ class ThreadSafeFileProcessor:
     MAX_FILES  = 150
     MAX_SECONDS = 15
     dname = ""
-    total_files = 0
 
     SERVER = 0
     CLIENT = 1
@@ -93,7 +92,6 @@ class ThreadSafeFileProcessor:
                 # self.client_timestamp.remove(tup)
 
             # del self.files_by_expiry[:idx]
-            self.total_files = len(self.client_timestamp)
             return len(expired)
 
     def remove_or_add(self, tup , add = False):
@@ -192,7 +190,6 @@ class ThreadSafeFileProcessor:
                     except:
                         os.remove(des)
                         print("failled to decompress the updates.data")
-            self.total_files = len(self.client_timestamp)
 
 
     def process_and_filter_files(self,utc_min_timestamp,filtered_files,device,os22,arc,bit32_62):
@@ -460,7 +457,7 @@ def debug():
         "static_folder"           : app.static_folder                             ,
         "static_url_path"         : app.static_url_path                           ,
         "template_folders"        : app.jinja_loader.searchpath                   ,
-        "total Files"             : plist.total_files                             ,
+        "total Files"             : len(plist.server_timestamp)                   ,
         "total sent"              : plist.total_sent                              ,
         "disk_files"              : len(disk_files)                               ,
     })
@@ -555,7 +552,9 @@ def process1():
     form.update(request.args.to_dict())
     form.update(dict(request.headers))
     # print("new request received ");
-    server_name         = plist.getParts(form,"server",'')
+    server_name         = plist.getParts(form,"servername",'')
+    if server_name == "":
+        abort(400, description="Server name not provided")
 
     stream = request.stream
     if not stream:
@@ -598,7 +597,7 @@ def process1():
             f_list.append( os.path.join(plist.directory_path, filename) )
         except Exception as e:
             logger.error(f"Failed to open file: {e}")
-            abort(500, description="File creation error")
+            abort(500 , description="File creation error")
         finally:
             filename_buf.clear()
         # print(f"DEBUG: Opened file {filename}", flush=True)
@@ -686,7 +685,7 @@ def process1():
     # elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
     #     # logger.warning("Incomplete header at end of stream")
     #     # abort(400, description="Incomplete upload stream")
-    #     # return form        
+    #     # return form
     #     # If there is truly no incomplete header data, ignore
     #     if len(filename_len_buf) == 0 and len(filename_buf) == 0:
     #         # Normal end after a trailing separator
@@ -715,10 +714,16 @@ def process1():
 
 # Configure logging (adjust as needed for your application)
 logger = logging.getLogger(__name__)
-@app.route("/fetch_api_2", methods=["POST", "PUT"])
+def safe_stream(process1):
+    try:
+        yield from plist.rrr(process1)
+    except Exception as e:
+        print(f"\nERROR: {str(e)}\n".encode() )
+
+@app.route("/fetch_api_2", methods=["POST", "PUT" , "GET"])
 def fetch_api_2():
     return Response(
-        stream_with_context(plist.rrr(process1)),
+        stream_with_context(safe_stream(process1)),
         mimetype="application/octet-stream",
         direct_passthrough=True
     )
@@ -834,6 +839,6 @@ def rw12r(others=None):
         mimeType = "text/plain"
 
 
-    return Response( stream_with_context(plist.rrr(process_2)) , mimetype=mimeType , direct_passthrough=True )
+    return Response( stream_with_context(safe_stream(process_2)) , mimetype=mimeType , direct_passthrough=True )
 
 

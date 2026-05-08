@@ -250,8 +250,10 @@ class ThreadSafeFileProcessor:
         return data
     def getFiles(self, form):
         # online = self.getParts(form, 'Online', utc_time_now - 15)
-        online = request.headers.get("online", "")
         utc_time_now = int(time.time())
+
+        default_online = str(utc_time_now - 15)
+        online = request.headers.get("online", default_online)
         utc_min_timestamp = int(float(online))
 
         with self.lock:
@@ -340,7 +342,8 @@ class ThreadSafeFileProcessor:
 
         use_separator = True
         searchname      = self.getParts(form,"fname",'')
-        _server         = self.getParts(form,"server",'')
+        _server         = request.headers.get("servername", "")
+
         if searchname != '':
             use_separator = False
             path_list = [f for f in path_list if searchname in f]

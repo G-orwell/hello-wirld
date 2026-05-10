@@ -29,9 +29,19 @@ class ThreadSafeFileProcessor:
     FILENAME = 3
 
     total_sent = ""
-    last_time_run = None
-    INTERVAL = 5  # seconds
 
+    web_tasks = {
+        "get_my_profile": {
+            "url": "url::mg/web_page/me.html/processpage?yield_to_remote=1&_server={{_server}}",
+            "interval": 5,
+            "last_run": None
+        },
+        "task2": {
+            "url": "url::mg/web_page/other.html/processpage?yield_to_remote=1&_server={{_server}}",
+            "interval": 100000,
+            "last_run": None
+        },
+    }
 
     def sortListRefresh(self):
         self.server_timestamp = SortedList(key=lambda x: x[0])   # (server_utc_timestamp, ...)
@@ -300,6 +310,13 @@ class ThreadSafeFileProcessor:
     #     # elif filename.find(".decomp") != -1:
     #     #     continue
     #     return files
+    def run_tasks(self, utc_time_now,_server):
+        for name , task in self.web_tasks.items():
+            if ( task["last_run"] is None or (utc_time_now - task["last_run"] >= task["interval"]) ):
+                task["last_run"] = utc_time_now
+                url = task["url"]
+                url = url.replace("{{_server}}",_server)
+                yield from yieldString(url)
 
     def stream_file(self, path):
         if os.path.getsize(path) == 0:
@@ -347,12 +364,13 @@ class ThreadSafeFileProcessor:
             # print("seaching for file",searchname," ; ",path_list)
         else:
             utc_time_now = int( float(time.time()) )
-            if (self.last_time_run is None) or (utc_time_now - self.last_time_run >= self.INTERVAL ):
-                self.last_time_run = utc_time_now
-                # yield from yieldString(f"url::mg/web_page/me.html/processpage?yield_to_remote=1&_server={_server}")
-                # yield from yieldString("url::mg/pythonanywhere_api/talentors2/webapps")
-                # yield from yieldString("url::mg/pythonanywhere_api/talentors2/update")
-                # update last run
+            self.run_tasks(utc_time_now,_server)
+            # if (self.last_time_run is None) or (utc_time_now - self.last_time_run >= self.INTERVAL ):
+            #     self.last_time_run = utc_time_now
+            #     # yield from yieldString(f"url::mg/web_page/me.html/processpage?yield_to_remote=1&_server={_server}")
+            #     # yield from yieldString("url::mg/pythonanywhere_api/talentors2/webapps")
+            #     # yield from yieldString("url::mg/pythonanywhere_api/talentors2/update")
+            #     # update last run
 
         for path in path_list:
             # if time.time() - start_time >= self.MAX_SECONDS:

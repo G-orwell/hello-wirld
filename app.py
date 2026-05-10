@@ -238,24 +238,26 @@ class ThreadSafeFileProcessor:
             except Exception as e:
                 print(f"Skipped (error):  ({e})")
                 continue
+    def cleanName(self , data):
+        data = data.replace("-","")
+        data = data.replace(":","")
+        data = data.replace(" ","")
+        return data
+
     def getParts(self,parts , pos , default=''):
         try:
-            data = parts[pos]
-            data = data.replace("-","")
-            data = data.replace(":","")
-            data = data.replace(" ","")
+            data = self.cleanName( parts[pos] )
         except:
-            print(f"form data {pos} not found ")
             data = default
         return data
-    def getFiles(self, form):
-        # online = self.getParts(form, 'Online', utc_time_now - 15)
+    def getFiles(self):
+        # online = self.getParts( 'Online', utc_time_now - 15)
         utc_time_now = int(time.time())
 
         default_online = str(utc_time_now - 15)
         online = request.headers.get("online", default_online)
         utc_min_timestamp = int(float(online))
-        print("Online : ",online)
+        # print("Online : ",online , " : " ,utc_min_timestamp)
 
         with self.lock:
             # client-based candidates
@@ -272,9 +274,10 @@ class ThreadSafeFileProcessor:
 
         # Now filter without holding the lock
         files = [os.path.join(self.directory_path, tup[self.FILENAME]) for tup in final]
-        return files[:self.MAX_FILES]
+        # print("Online total files : ", len(files) , " Files:",files )
+        return files
 
-    # def getFiles(self,form):
+    # def getFiles(self):
     #     files = []
     #     utc_time_now = int( float(time.time()) )
     #     try:
@@ -329,20 +332,13 @@ class ThreadSafeFileProcessor:
                     f_out.write(mv[:read_bytes])
     def rrr(self,callback , path_list=None):
 
-        result = callback()
-        if isinstance(result, types.GeneratorType):
-            try:
-                form = yield from result
-            except StopIteration as e:
-                form = e.value
-        else:
-            form = result
+        yield from callback()
 
         start_time = time.time()
-        path_list = self.getFiles(form)
+        path_list = self.getFiles()
 
-        use_separator = True
-        searchname      = self.getParts(form,"fname",'')
+        use_separator   = True
+        searchname      = "" #self.getParts("fname",'')
         _server         = request.headers.get("servername", "")
 
         if searchname != '':
@@ -372,9 +368,7 @@ class ThreadSafeFileProcessor:
             except Exception as e:
                 print("Error sending:", path, e)
                 continue
-
         if use_separator:
-
             for f in self.me:
                 try:
                     size = os.path.getsize( os.path.join( self.directory_path , f ) )
@@ -399,9 +393,8 @@ class ThreadSafeFileProcessor:
     def saveFile(self,data,device_id='updates',TIME_IN_SERVER   = 15):
         timestamp_str    = datetime.datetime.now()
 
-        form             = {}
-        form['saveName'] = plist.getServerTimeStamp_UTC() + plist.splitter + str(int(float(time.time()))) + self.splitter + device_id + self.splitter + str(TIME_IN_SERVER)
-        name             = self.getParts(form,"saveName",'')
+        name = plist.getServerTimeStamp_UTC() + plist.splitter + str(int(float(time.time()))) + self.splitter + device_id + self.splitter + str(TIME_IN_SERVER)
+        name = self.cleanName(name)
         filepath         = os.path.join( self.directory_path , name )
 
         with open(filepath, "w") as file:
@@ -553,12 +546,9 @@ def file_saved_on_server( filename , server_name):
     yield from yieldString(s)
 
 def process1():
-    form = {}
     # print("request.headers == ",request.headers)
-    form.update(request.args.to_dict())
-    # form.update(dict(request.headers))
     # print("new request received ");
-    # server_name         = plist.getParts(form,"servername",'')
+    # server_name         = plist.getParts("servername",'')
     server_name         = request.headers.get("servername", "")
     if server_name == "":
         print(request.headers)
@@ -601,6 +591,7 @@ def process1():
 
             filepath = os.path.join(plist.directory_path, filename)
             current_file = open(filepath, "wb")
+            print("file reached server last_time_online:",request.headers.get("online",'')," ",filename)
 
             f_list.append( os.path.join(plist.directory_path, filename) )
         except Exception as e:
@@ -671,9 +662,7 @@ def process1():
                         current_file = None
                         yield from file_saved_on_server(filename,server_name)
 
-
                     i = sep_index + SEP_LEN
-
                     # Reset for next file
                     state = STATE_FILENAME_LEN
                     filename_len_buf.clear()
@@ -693,11 +682,9 @@ def process1():
     # elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
     #     # logger.warning("Incomplete header at end of stream")
     #     # abort(400, description="Incomplete upload stream")
-    #     # return form
     #     # If there is truly no incomplete header data, ignore
     #     if len(filename_len_buf) == 0 and len(filename_buf) == 0:
     #         # Normal end after a trailing separator
-    #         return form
     #     else:
     #         logger.warning("Incomplete header at end of stream")
     #         abort(400, description="Incomplete upload stream")
@@ -717,14 +704,14 @@ def process1():
         else:
             logger.warning("Incomplete header at end of stream")
             abort(400, description="Incomplete upload stream")
-    return form
+
 
 
 # Configure logging (adjust as needed for your application)
 logger = logging.getLogger(__name__)
-def safe_stream(process1):
+def safe_stream(p):
     try:
-        yield from plist.rrr(process1)
+        yield from plist.rrr(p)
     except Exception as e:
         print(f"\nERROR: {str(e)}\n".encode() )
 
@@ -806,14 +793,10 @@ def fetch_api_2():
 #     if f:
 #         f.close()
 
-#     form = {}
-#     form.update( request.args.to_dict() )
-#     form.update(dict(request.headers))
 
-#     return Response( plist.rrr(form) , mimetype="application/octet-stream" , direct_passthrough=True )
+#     return Response( plist.rrr() , mimetype="application/octet-stream" , direct_passthrough=True )
 
 def process_2():
-    form = {}
     try:
         for file_key in request.files:
             file = request.files[file_key]
@@ -823,21 +806,11 @@ def process_2():
             filepath = os.path.join( plist.directory_path , filename)
             file.save(filepath)
 
-
+# request.headers['X-Real-IP']
             plist.add([filename])
-        form.update( request.form.to_dict() )
-        form.update( request.args.to_dict() )
-
-
-
-        # if "yields" in form :
-        #     plist.cleanup_old_files()
-        #     plist.saveFile(form["yields"],'updates.data')
-        # form["session_ip"] = request.headers['X-Real-IP']
     except Exception as e:
         msg = f"Something went wrong e <br> {e}"
         print(msg)
-    return form
 
 @app.route("/fetch_api",methods=['GET','POST','PUT'])
 def rw12r(others=None):

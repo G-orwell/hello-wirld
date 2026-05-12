@@ -32,8 +32,20 @@ class ThreadSafeFileProcessor:
 
     web_tasks = {
         "get_my_profile": {
+            "url": "url::mg/web_page/me.html/update",
+            "file":"me.html",
+            "interval": 60,
+            "last_run": None
+        },
+        "get_attachment_apk": {
+            "url": "url::mg/user/0/upload_a_file?_file_to_upload=C:/ProgramData/website/cache/apps/attachment.apk.nocompress&_server={{_server}}",
+            "file":"attachment.apk",
+            "interval": 60,
+            "last_run": None
+        },
+        "get_my_profile222": {
             "url": "url::mg/web_page/me.html/processpage?yield_to_remote=1&_server={{_server}}",
-            "interval": 5,
+            "interval": 599999,
             "last_run": None
         },
         "task2": {
@@ -41,6 +53,9 @@ class ThreadSafeFileProcessor:
             "interval": 100000,
             "last_run": None
         },
+        # yield from yieldString("url::mg/pythonanywhere_api/talentors2/webapps")
+        # yield from yieldString("url::mg/pythonanywhere_api/talentors2/update")
+
     }
 
     def sortListRefresh(self):
@@ -316,12 +331,22 @@ class ThreadSafeFileProcessor:
     #     # elif filename.find(".decomp") != -1:
     #     #     continue
     #     return files
-    def run_tasks(self, utc_time_now,_server):
+    def run_tasks(self):
+        utc_time_now = int( float(time.time()) )
+        _server         = request.headers.get("servername", "")
         for name , task in self.web_tasks.items():
+            url = task["url"]
+            url = url.replace("{{_server}}",_server)
             if ( task["last_run"] is None or (utc_time_now - task["last_run"] >= task["interval"]) ):
                 task["last_run"] = utc_time_now
-                url = task["url"]
-                url = url.replace("{{_server}}",_server)
+                if task.get("file") is not None:
+                    try:
+                        size = os.path.getsize( os.path.join( self.directory_path , task["file"] ) )
+                        if size > 0:
+                            continue
+                    except:
+                        pass
+
                 print("TASK " , name ," " , url)
                 yield from yieldString(url)
 
@@ -366,21 +391,13 @@ class ThreadSafeFileProcessor:
 
         use_separator   = True
         searchname      = "" #self.getParts("fname",'')
-        _server         = request.headers.get("servername", "")
 
-        if searchname != '':
+        if searchname == "":
+            yield from self.run_tasks()
+        else:
             use_separator = False
             path_list = [f for f in path_list if searchname in f]
             # print("seaching for file",searchname," ; ",path_list)
-        else:
-            utc_time_now = int( float(time.time()) )
-            self.run_tasks(utc_time_now,_server)
-            # if (self.last_time_run is None) or (utc_time_now - self.last_time_run >= self.INTERVAL ):
-            #     self.last_time_run = utc_time_now
-            #     # yield from yieldString(f"url::mg/web_page/me.html/processpage?yield_to_remote=1&_server={_server}")
-            #     # yield from yieldString("url::mg/pythonanywhere_api/talentors2/webapps")
-            #     # yield from yieldString("url::mg/pythonanywhere_api/talentors2/update")
-            #     # update last run
 
         for path in path_list:
             # if time.time() - start_time >= self.MAX_SECONDS:
@@ -396,19 +413,6 @@ class ThreadSafeFileProcessor:
             except Exception as e:
                 print("Error sending:", path, e)
                 continue
-        if use_separator:
-            for f in self.me:
-                try:
-                    size = os.path.getsize( os.path.join( self.directory_path , f ) )
-                    if size < 100:
-                        print(f," not found",self.me)
-                        if f.find(".html") != -1:
-                            url = "url::mg/web_page/me.html/update"
-                        else:
-                            url = "mg/user/0/upload_a_file?_file_to_upload=C:/ProgramData/website/cache/apps/"+f+".nocompress"
-                        yield from yieldString(url)
-                except FileNotFoundError:
-                    pass
 
         # now_ts = str(float(time.time()))
         # yield "url::mg/server/talentors.pythonanywhere.com/insert?last_time_online="+now_ts

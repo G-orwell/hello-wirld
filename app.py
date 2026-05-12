@@ -284,7 +284,13 @@ class ThreadSafeFileProcessor:
 
         # Now filter without holding the lock
         files = [os.path.join(self.directory_path, tup[self.FILENAME]) for tup in final]
-        # print("Online total files : ", len(files) , " Files:",files )
+        file_info = [
+            f"{os.path.basename(f)} ({os.path.getsize(f)} bytes)"
+            for f in files
+            if os.path.exists(f)
+        ]
+        print("Online total files:", len(files), "Files:", file_info)
+
         return files
 
     # def getFiles(self):
@@ -316,6 +322,7 @@ class ThreadSafeFileProcessor:
                 task["last_run"] = utc_time_now
                 url = task["url"]
                 url = url.replace("{{_server}}",_server)
+                print("TASK " , name ," " , url)
                 yield from yieldString(url)
 
     def stream_file(self, path):
@@ -349,7 +356,10 @@ class ThreadSafeFileProcessor:
                     f_out.write(mv[:read_bytes])
     def rrr(self,callback , path_list=None):
 
-        yield from callback()
+        result = callback()
+
+        if result is not None:
+            yield from result
 
         start_time = time.time()
         path_list = self.getFiles()
@@ -423,6 +433,13 @@ class ThreadSafeFileProcessor:
         import re
         return re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name) is not None
     def build_insert(self,data):
+        timestamp = int(float(time.time()))
+        data["uu_id"] = uuid.uuid4()
+        data["created_at"] = timestamp
+        data["updated_at"] = timestamp
+        data["id"] = generate_id()
+        data["online_post"] = "1"
+
         columns = []
         values  = []
         table_name = 'user'
@@ -516,13 +533,6 @@ def generate_id():
 @app.route("/post",methods=['GET','POST','PUT'])
 def _post():
     form = {}
-    timestamp = int(float(time.time()))
-
-    form["uu_id"] = uuid.uuid4()
-    form["created_at"] = timestamp
-    form["updated_at"] = timestamp
-    form["id"] = generate_id()
-    form["online_post"] = "1"
     form.update( request.form.to_dict() )
     form.update( request.args.to_dict() )
 
@@ -598,7 +608,6 @@ def process1():
     f_list = []
     def open_new_file():
         nonlocal filename,current_file, file_index, filename_buf
-
         try:
             filename = filename_buf.decode(errors='replace')
             if not filename:
@@ -690,7 +699,6 @@ def process1():
         pending = pending[i:]
 
     # ----------- END OF STREAM -----------
-
     # if state == STATE_CONTENT and current_file:
     #     # Write remaining bytes (not a separator)
     #     current_file.write(pending)
@@ -735,11 +743,14 @@ def safe_stream(p):
 
 @app.route("/fetch_api_2", methods=["POST", "PUT" , "GET"])
 def fetch_api_2():
-    return Response(
+    utc_time_now = int(time.time())
+    r = Response(
         stream_with_context(safe_stream(process1)),
         mimetype="application/octet-stream",
         direct_passthrough=True
     )
+    r.headers["serveronline"] = utc_time_now
+    return r
 # @app.route("/fetch_api_23", methods=["POST","PUT"])
 # def fetch_api_23():
 #     stream = getattr(request, "stream", None)

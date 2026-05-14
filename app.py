@@ -12,6 +12,7 @@ from threading import Lock
 from bisect import bisect_left
 import calendar
 import zstandard as zstd
+import traceback
 
 class ThreadSafeFileProcessor:
     splitter  = "112u211"
@@ -58,10 +59,6 @@ class ThreadSafeFileProcessor:
 
     }
 
-    def sortListRefresh(self):
-        self.server_timestamp = SortedList(key=lambda x: x[0])   # (server_utc_timestamp, ...)
-        self.client_timestamp = SortedList(key=lambda x: x[1])   # (client_utc_timestamp, ...)
-        self.files_by_expiry  = SortedList(key=lambda x: x[2])   # (expire_ts, ...)
 
     def __init__(self):
         self.directory_path = str(Path(__file__).resolve().parent / "cache")
@@ -69,6 +66,11 @@ class ThreadSafeFileProcessor:
 
         self.lock = Lock()
         os.makedirs(self.directory_path, exist_ok=True)
+
+        self.server_timestamp = SortedList(key=lambda x: x[0])   # (server_utc_timestamp, ...)
+        self.client_timestamp = SortedList(key=lambda x: x[1])   # (client_utc_timestamp, ...)
+        self.files_by_expiry  = SortedList(key=lambda x: x[2])   # (expire_ts, ...)
+
 
         # for filename in os.listdir(self.directory_path):#slower
         #     current_files.append(filename)
@@ -154,9 +156,11 @@ class ThreadSafeFileProcessor:
             f.write(content)
 
     def add(self, filenames,newList=False):
+        if len(filenames) == 0:
+            return
+
         with self.lock:
-            if newList:
-                self.sortListRefresh()
+            total_added_files = 0
 
             for filename in filenames:
                 src = os.path.join(self.directory_path, filename)
@@ -203,8 +207,11 @@ class ThreadSafeFileProcessor:
 
                 tup = (server_utc_timestamp,client_utc_timestamp,expire_ts,filename)
                 self.remove_or_add(tup,True)
+                total_added_files += 1
                 if filename.find("updates.data") != -1:
+                    print("decompressing updatates.data")
                     src = os.path.join(self.directory_path, filename)
+                    filename = filename.replace(".data.comp",".decomp")
                     filename = filename.replace(".data",".decomp")
                     filename = filename.replace("upload_","")
                     des = os.path.join(self.directory_path, filename)
@@ -212,9 +219,12 @@ class ThreadSafeFileProcessor:
                         self.decompress_zstd_file(src,des)
                         tup = (server_utc_timestamp,client_utc_timestamp,expire_ts,filename)
                         self.remove_or_add(tup,True)
+                        total_added_files += 1
                     except:
                         os.remove(des)
                         print("failled to decompress the updates.data")
+
+            print(f"New Added Files : {total_added_files}")
 
 
     def process_and_filter_files(self,utc_min_timestamp,filtered_files,device,os22,arc,bit32_62):
@@ -297,16 +307,24 @@ class ThreadSafeFileProcessor:
             # final = client_candidates & server_candidates
             final = server_candidates
 
-        # Now filter without holding the lock
-        files = [os.path.join(self.directory_path, tup[self.FILENAME]) for tup in final]
-        file_info = [
-            f"{os.path.basename(f)} ({os.path.getsize(f)} bytes)"
-            for f in files
-            if os.path.exists(f)
-        ]
-        print("Online total files:", len(files), "Files:", file_info)
 
-        return files
+
+        searchname      = request.args.get("fname", "")
+
+        # Now filter without holding the lock
+        files = [ tup[self.FILENAME] for tup in final]
+        if searchname != "":
+            files = [f for f in files if searchname in f]
+
+
+        sizes = [ os.path.getsize( os.path.join(self.directory_path, tup[self.FILENAME]) ) for tup in final]
+
+        file_info = [
+            f"{f} ({os.path.getsize( os.path.join(self.directory_path, f) )} bytes)" for f in files
+        ]
+        print(f"Online:{utc_min_timestamp} total files:{len(files)} Files:{file_info} ")
+
+        return files , sizes
 
     # def getFiles(self):
     #     files = []
@@ -332,13 +350,16 @@ class ThreadSafeFileProcessor:
     #     #     continue
     #     return files
     def run_tasks(self):
-        utc_time_now = int( float(time.time()) )
         _server         = request.headers.get("servername", "")
+        if _server == "":
+            return ""
+        return_data = ""
+        utc_time_now = int( float(time.time()) )
         for name , task in self.web_tasks.items():
-            url = task["url"]
-            url = url.replace("{{_server}}",_server)
             if ( task["last_run"] is None or (utc_time_now - task["last_run"] >= task["interval"]) ):
                 task["last_run"] = utc_time_now
+                url = task["url"]
+                url = url.replace("{{_server}}",_server)
                 if task.get("file") is not None:
                     try:
                         size = os.path.getsize( os.path.join( self.directory_path , task["file"] ) )
@@ -348,7 +369,8 @@ class ThreadSafeFileProcessor:
                         pass
 
                 print("TASK " , name ," " , url)
-                yield from yieldString(url)
+                return_data += yieldString(url);
+        return return_data
 
     def stream_file(self, path):
         if os.path.getsize(path) == 0:
@@ -379,44 +401,18 @@ class ThreadSafeFileProcessor:
                     if read_bytes == 0:
                         break
                     f_out.write(mv[:read_bytes])
-    def rrr(self,callback , path_list=None):
-
-        result = callback()
-
-        if result is not None:
-            yield from result
-
-        start_time = time.time()
-        path_list = self.getFiles()
-
-        use_separator   = True
-        searchname      = "" #self.getParts("fname",'')
-
-        if searchname == "":
-            yield from self.run_tasks()
-        else:
-            use_separator = False
-            path_list = [f for f in path_list if searchname in f]
-            # print("seaching for file",searchname," ; ",path_list)
-
-        for path in path_list:
-            # if time.time() - start_time >= self.MAX_SECONDS:
-            #     break
-            # print("Streaming file ", path)
+    def rrr(self,server_files):
+        for filename in server_files:
+            path = os.path.join(plist.directory_path, filename)
             try:
                 sent_any = False
                 for chunk in self.stream_file(path) or []:
                     sent_any = True
                     yield chunk
-                if use_separator and sent_any:
-                    yield self.SEPARATOR
             except Exception as e:
                 print("Error sending:", path, e)
                 continue
 
-        # now_ts = str(float(time.time()))
-        # yield "url::mg/server/talentors.pythonanywhere.com/insert?last_time_online="+now_ts
-        # yield self.SEPARATOR
         self.maybe_cleanup()
 
     def getServerTimeStamp_UTC(self):
@@ -552,30 +548,24 @@ from flask import request, abort
 
 def yieldString(s):
     s = f"\n{s}"
-    yield s.encode("utf-8")
-    yield plist.SEPARATOR
-def split_remove_first_join(text, splitter):
-    parts = text.split(splitter)  # split the string
-    if len(parts) <= 1:
-        return ""  # nothing left after removing first element
-    return splitter.join(parts[1:])  # remove first and re-join
+    return s
 
-def file_saved_on_server( filename , server_name):
-    # print("saving file on server  ",filename);
-    size = 0
-    path = os.path.join(plist.directory_path, filename)
-    if os.path.exists(path):
-        try:
-            size = os.path.getsize( path )
-            plist.add([filename])
-        except:
-            pass
+def stream_to_file(stream, output_path, chunk_size=64 * 1024):
+    total_written = 0
 
-    filename = split_remove_first_join(filename,plist.splitter)
-    filename2 = filename.replace(".comp","")
-    s = f"url::mg/file/{filename2}/insert?saved_on_server=1&file_to_delete={filename},{filename2}&time_reached_server={int(float(time.time()))}&upload_record=0&size_in_server={str(size)}&server_name={server_name}"
+    with open(output_path, "wb") as f:
+        while True:
+            chunk = stream.read(chunk_size)
+            if not chunk:
+                break
 
-    yield from yieldString(s)
+            f.write(chunk)
+            total_written += len(chunk)
+
+    return total_written
+
+def process_stream():
+    pass
 
 def process1():
     # print("request.headers == ",request.headers)
@@ -591,23 +581,18 @@ def process1():
         logger.warning("No stream available")
         abort(400, description="No stream provided")
 
-    SEPARATOR = b'\xde\xad\xbe\xef'
-    SEP_LEN = len(SEPARATOR)
-
+    SEPARATOR          = b'\xde\xad\xbe\xef'
+    SEP_LEN            = len(SEPARATOR)
     STATE_FILENAME_LEN = 0
-    STATE_FILENAME = 1
-    STATE_CONTENT = 2
-
-    state = STATE_FILENAME_LEN
-
-    filename = ""
+    STATE_FILENAME     = 1
+    STATE_CONTENT    = 2
+    state            = STATE_FILENAME_LEN
+    filename         = ""
     filename_len_buf = bytearray()
-    filename_buf = bytearray()
-
-    pending = bytearray()
-
-    current_file = None
-    file_index = 1
+    filename_buf     = bytearray()
+    pending          = bytearray()
+    current_file     = None
+    file_index       = 1
 
     f_list = []
     def open_new_file():
@@ -691,7 +676,6 @@ def process1():
                         current_file.write(pending[i:sep_index])
                         current_file.close()
                         current_file = None
-                        yield from file_saved_on_server(filename,server_name)
 
                     i = sep_index + SEP_LEN
                     # Reset for next file
@@ -707,7 +691,6 @@ def process1():
     #     # Write remaining bytes (not a separator)
     #     current_file.write(pending)
     #     current_file.close()
-    #     yield from file_saved_on_server(filename)
 
     # elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
     #     # logger.warning("Incomplete header at end of stream")
@@ -725,7 +708,6 @@ def process1():
         # print(f"DEBUG: Final file write for {filename}", flush=True)
         current_file.write(pending)
         current_file.close()
-        yield from file_saved_on_server(filename,server_name)   # move this before write? but keep as you have
     elif state in (STATE_FILENAME_LEN, STATE_FILENAME):
         # If we are waiting for a header but no bytes were read, it's a clean trailing separator
         if len(filename_len_buf) == 0 and len(filename_buf) == 0 and len(pending) == 0:
@@ -735,24 +717,102 @@ def process1():
             logger.warning("Incomplete header at end of stream")
             abort(400, description="Incomplete upload stream")
 
+import os
+
+def parse_client_data(clientfilename: str, clientfilesize: str):
+    names = [x.strip() for x in clientfilename.split(",") if x.strip()]
+
+    sizes = []
+    for x in clientfilesize.split(","):
+        x = x.strip()
+        if x.isdigit():
+            sizes.append(int(x))
+
+    # enforce consistency
+    if len(names) != len(sizes):
+        print("clientfilename : ",clientfilename)
+        print("clientfilesize : ",clientfilesize)
+
+        print("names : ",names)
+        print("sizes : ",sizes)
+        raise ValueError(f"Mismatch: {len(names)} names vs {len(sizes)} sizes")
+
+    return names, sizes
+
+def split_and_save_file(client_files, client_sizes , filepath: str, output_dir: str):
+    server_name         = request.headers.get("servername", "")
+
+    with open(filepath, "rb") as f:
+        server_files = []
+        for name, size in zip(client_files, client_sizes):
+            client_filename = name
+            if name.find(plist.splitter) != -1:
+                name = plist.getServerTimeStamp_UTC() + plist.splitter + name
+
+            output_path = os.path.join(output_dir, name)
+
+            # read chunk
+            data = f.read(size)
+
+            # write chunk
+            with open(output_path, "wb") as out:
+                out.write(data)
+                server_files.append(name)
+                # s += f"\nurl::mg/file/{client_filename}/insert?saved_on_server=1&file_to_delete={client_filename}&time_reached_server={int(float(time.time()))}&upload_record=0&size_in_server={str(size)}&server_name={server_name}"
+        plist.add(server_files)
+
 
 
 # Configure logging (adjust as needed for your application)
 logger = logging.getLogger(__name__)
-def safe_stream(p):
+def safe_stream(server_files , data_to_yield ):
+    #even the slitest thing added and yielded to the client will corrupt the whole strem
+    #it must be recorded in the headers firs for accurate capture by the client
     try:
-        yield from plist.rrr(p)
+
+        yield from plist.rrr(server_files)
+
+        if len(data_to_yield) > 0:
+            yield data_to_yield
+
+
     except Exception as e:
+        traceback.print_exc()
         print(f"\nERROR: {str(e)}\n".encode() )
 
 @app.route("/fetch_api_2", methods=["POST", "PUT" , "GET"])
 def fetch_api_2():
-    utc_time_now = int(time.time())
+
+    output_path = os.path.join( plist.directory_path , f"stream.p.{uuid.uuid4()}" )
+    size = stream_to_file(request.stream , output_path )
+
+    client_names , client_sizes = parse_client_data( request.headers.get("clientfilename", "") , request.headers.get("clientfilesize", "") )
+    split_and_save_file(client_names , client_sizes , output_path , plist.directory_path)
+    utc_time_now = int(time.time())+1
+    if os.path.exists(output_path):
+        os.remove(output_path)
+
+    #ANY YIELD(BYTES ONLY) THAT THE SERVER NEED TO SEND TO CLIENT(MUST BE RECORDED)
+    data_to_yield = plist.run_tasks().encode("utf-8")
+
+    server_names , server_sizes  = plist.getFiles()
+
     r = Response(
-        stream_with_context(safe_stream(process1)),
+        stream_with_context(safe_stream(server_names.copy() , data_to_yield )),
         mimetype="application/octet-stream",
         direct_passthrough=True
     )
+    server_names.append("server_run_tasks")
+    server_sizes.append( len(data_to_yield) )
+
+    r.headers["clientfilesizeoriginal"] = request.headers.get("clientfilesizeoriginal", "")
+    r.headers["clientfilesize"] = request.headers.get("clientfilesize", "")
+    r.headers["clientfilename"] = request.headers.get("clientfilename", "")
+
+    r.headers["serverfilename"] = ",".join(server_names)
+    r.headers["serverfilesize"] = ",".join(map(str, server_sizes))
+    r.headers["down_stream_size_client"] = size
+    r.headers["down_stream_size_server"] = sum(server_sizes)
     r.headers["serveronline"] = utc_time_now
     return r
 # @app.route("/fetch_api_23", methods=["POST","PUT"])
@@ -852,7 +912,8 @@ def rw12r(others=None):
     if "fname" in request.args:
         mimeType = "text/plain"
 
+    server_names , server_sizes  = plist.getFiles()
 
-    return Response( stream_with_context(safe_stream(process_2)) , mimetype=mimeType , direct_passthrough=True )
+    return Response( stream_with_context(safe_stream( server_names , "" )) , mimetype=mimeType , direct_passthrough=True )
 
 

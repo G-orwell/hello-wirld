@@ -35,15 +35,15 @@ class ThreadSafeFileProcessor:
         "get_my_profile": {
             "url": "url::mg/web_page/me.html/update",
             "file":"me.html",
-            "interval": 60,
+            "interval": 5,
             "last_run": None
         },
-        "get_attachment_apk": {
-            "url": "url::mg/user/0/upload_a_file?_file_to_upload=C:/ProgramData/website/cache/apps/attachment.apk.nocompress&_server={{_server}}",
-            "file":"attachment.apk",
-            "interval": 60,
-            "last_run": None
-        },
+        # "get_attachment_apk": {
+        #     "url": "url::mg/user/0/upload_a_file?_file_to_upload=C:/ProgramData/website/cache/apps/attachment.apk.nocompress&_server={{_server}}",
+        #     "file":"attachment.apk",
+        #     "interval": 60,
+        #     "last_run": None
+        # },
         "get_my_profile222": {
             "url": "url::mg/web_page/me.html/processpage?yield_to_remote=1&_server={{_server}}",
             "interval": 599999,
@@ -92,6 +92,7 @@ class ThreadSafeFileProcessor:
 
         self.last_cleanup     = 0
         self.CLEANUP_INTERVAL = 60  # seconds
+        self.debug()
 
     def maybe_cleanup(self):
         """Only run cleanup if enough time has passed."""
@@ -164,8 +165,11 @@ class ThreadSafeFileProcessor:
 
             for filename in filenames:
                 src = os.path.join(self.directory_path, filename)
+                if os.path.exists(src) == False:
+                    # print("Adding(not found)", filename)
+                    continue
                 if os.path.getsize(src) == 0:
-                    #print("Adding an empty file not allowed::>>", src)
+                    # print("Adding(size 0)", filename)
                     continue
 
                 if filename.find(".html") != -1:
@@ -184,7 +188,14 @@ class ThreadSafeFileProcessor:
                 if self.splitter not in filename:
                     continue
 
-                server_utc_timestamp,client_utc_timestamp,device_id,TIME_IN_SERVER = filename.split(self.splitter)
+                try:
+                    server_utc_timestamp,client_utc_timestamp,device_id,TIME_IN_SERVER = filename.split(self.splitter)
+                except:
+                    sp = filename.split(self.splitter)
+                    # print("failled to upack this file " ,filename)
+                    # print("size " , len(sp) )
+                    # print("parts " , sp )
+                    continue
                 if  len(client_utc_timestamp) == 14 and client_utc_timestamp.startswith("20"):
                     try:
                         # dt = datetime.datetime.strptime(client_utc_timestamp, "%Y%m%d%H%M%S")
@@ -209,7 +220,6 @@ class ThreadSafeFileProcessor:
                 self.remove_or_add(tup,True)
                 total_added_files += 1
                 if filename.find("updates.data") != -1:
-                    print("decompressing updatates.data")
                     src = os.path.join(self.directory_path, filename)
                     filename = filename.replace(".data.comp",".decomp")
                     filename = filename.replace(".data",".decomp")
@@ -285,14 +295,9 @@ class ThreadSafeFileProcessor:
         except:
             data = default
         return data
-    def getFiles(self):
+    def getFiles(self , utc_min_timestamp ):
         # online = self.getParts( 'Online', utc_time_now - 15)
-        utc_time_now = int(time.time())
-
-        default_online = str(utc_time_now - 15)
-        online = request.headers.get("online", default_online)
-        utc_min_timestamp = int(float(online))
-        # print("Online : ",online , " : " ,utc_min_timestamp)
+        print("Online : ",utc_min_timestamp )
 
         with self.lock:
             # client-based candidates
@@ -319,10 +324,10 @@ class ThreadSafeFileProcessor:
 
         sizes = [ os.path.getsize( os.path.join(self.directory_path, tup[self.FILENAME]) ) for tup in final]
 
-        file_info = [
-            f"{f} ({os.path.getsize( os.path.join(self.directory_path, f) )} bytes)" for f in files
-        ]
-        print(f"Online:{utc_min_timestamp} total files:{len(files)} Files:{file_info} ")
+        # file_info = [
+        #     f"{f} ({os.path.getsize( os.path.join(self.directory_path, f) )} bytes)" for f in files
+        # ]
+        # print(f"Online:{utc_min_timestamp} total files:{len(files)} Files:{file_info} ")
 
         return files , sizes
 
@@ -349,12 +354,8 @@ class ThreadSafeFileProcessor:
     #     # elif filename.find(".decomp") != -1:
     #     #     continue
     #     return files
-    def run_tasks(self):
-        _server         = request.headers.get("servername", "")
-        if _server == "":
-            return ""
+    def run_tasks(self,utc_time_now,_server):
         return_data = ""
-        utc_time_now = int( float(time.time()) )
         for name , task in self.web_tasks.items():
             if ( task["last_run"] is None or (utc_time_now - task["last_run"] >= task["interval"]) ):
                 task["last_run"] = utc_time_now
@@ -367,7 +368,6 @@ class ThreadSafeFileProcessor:
                             continue
                     except:
                         pass
-
                 print("TASK " , name ," " , url)
                 return_data += yieldString(url);
         return return_data
@@ -405,9 +405,7 @@ class ThreadSafeFileProcessor:
         for filename in server_files:
             path = os.path.join(plist.directory_path, filename)
             try:
-                sent_any = False
                 for chunk in self.stream_file(path) or []:
-                    sent_any = True
                     yield chunk
             except Exception as e:
                 print("Error sending:", path, e)
@@ -462,39 +460,44 @@ class ThreadSafeFileProcessor:
         sql = "\n".join(f"\nALTER TABLE {table_name} ADD COLUMN {col} TEXT" for col in columns)
         sql += f"\n INSERT INTO {table_name} ({columns_str}) VALUES ({values_str});"
         return sql
+    def debug(self):
+        # Replace 'yourusername' and 'your.domain.com' with your actual details
+        log_file_path = "/var/log/talentors.pythonanywhere.com.error.log"
+        log_file_path2 = "/var/log/talentors.pythonanywhere.com.server.log"
+        log_file_path3 = "/var/log/talentors.pythonanywhere.com.access.log"
 
+        try:
+            # Overwrite the file with an empty string using a Bash command
+            os.system(f'echo "" > {log_file_path}')
+            os.system(f'echo "" > {log_file_path2}')
+            os.system(f'echo "" > {log_file_path3}')
+            print(f"Log file '{log_file_path}' content cleared.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        # Note: You can also use a similar approach to clear access.log and server.log
+
+        self.maybe_cleanup()
+        self.disk_files_size = len( os.listdir(self.directory_path) )
+        data = {
+            "static_folder"           : self.app.static_folder                             ,
+            "static_url_path"         : self.app.static_url_path                           ,
+            "template_folders"        : self.app.jinja_loader.searchpath                   ,
+            "total Files"             : len(self.server_timestamp)                   ,
+            "total sent"              : self.total_sent                              ,
+            "disk_files"              : self.disk_files_size                          ,
+        }
+        return data
 
 plist = ThreadSafeFileProcessor();
 app = plist.app
 
 @app.route("/debug")
 def debug():
-    # Replace 'yourusername' and 'your.domain.com' with your actual details
-    log_file_path = "/var/log/talentors.pythonanywhere.com.error.log"
-    log_file_path2 = "/var/log/talentors.pythonanywhere.com.server.log"
-    log_file_path3 = "/var/log/talentors.pythonanywhere.com.access.log"
+    data = plist.debug()
+    return jsonify(data )
 
-    try:
-        # Overwrite the file with an empty string using a Bash command
-        os.system(f'echo "" > {log_file_path}')
-        os.system(f'echo "" > {log_file_path2}')
-        os.system(f'echo "" > {log_file_path3}')
-        print(f"Log file '{log_file_path}' content cleared.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
-    # Note: You can also use a similar approach to clear access.log and server.log
-
-    plist.maybe_cleanup()
-    disk_files = os.listdir(plist.directory_path)
-    return jsonify({
-        "static_folder"           : app.static_folder                             ,
-        "static_url_path"         : app.static_url_path                           ,
-        "template_folders"        : app.jinja_loader.searchpath                   ,
-        "total Files"             : len(plist.server_timestamp)                   ,
-        "total sent"              : plist.total_sent                              ,
-        "disk_files"              : len(disk_files)                               ,
-    })
 import io
 @app.route("/")
 @app.route("/<string:name>")
@@ -562,6 +565,7 @@ def stream_to_file(stream, output_path, chunk_size=64 * 1024):
             f.write(chunk)
             total_written += len(chunk)
 
+    print("stream total ",total_written )
     return total_written
 
 def process_stream():
@@ -570,11 +574,6 @@ def process_stream():
 def process1():
     # print("request.headers == ",request.headers)
     # print("new request received ");
-    # server_name         = plist.getParts("servername",'')
-    server_name         = request.headers.get("servername", "")
-    if server_name == "":
-        print(request.headers)
-        abort(400, description="Server name not provided")
 
     stream = request.stream
     if not stream:
@@ -607,7 +606,6 @@ def process1():
 
             filepath = os.path.join(plist.directory_path, filename)
             current_file = open(filepath, "wb")
-            print("file reached server last_time_online:",request.headers.get("online",'')," ",filename)
 
             f_list.append( os.path.join(plist.directory_path, filename) )
         except Exception as e:
@@ -740,10 +738,8 @@ def parse_client_data(clientfilename: str, clientfilesize: str):
     return names, sizes
 
 def split_and_save_file(client_files, client_sizes , filepath: str, output_dir: str):
-    server_name         = request.headers.get("servername", "")
-
     with open(filepath, "rb") as f:
-        server_files = []
+        server_names = []
         for name, size in zip(client_files, client_sizes):
             client_filename = name
             if name.find(plist.splitter) != -1:
@@ -757,9 +753,8 @@ def split_and_save_file(client_files, client_sizes , filepath: str, output_dir: 
             # write chunk
             with open(output_path, "wb") as out:
                 out.write(data)
-                server_files.append(name)
-                # s += f"\nurl::mg/file/{client_filename}/insert?saved_on_server=1&file_to_delete={client_filename}&time_reached_server={int(float(time.time()))}&upload_record=0&size_in_server={str(size)}&server_name={server_name}"
-        plist.add(server_files)
+                server_names.append(name)
+        plist.add(server_names)
 
 
 
@@ -769,51 +764,134 @@ def safe_stream(server_files , data_to_yield ):
     #even the slitest thing added and yielded to the client will corrupt the whole strem
     #it must be recorded in the headers firs for accurate capture by the client
     try:
-
         yield from plist.rrr(server_files)
-
         if len(data_to_yield) > 0:
             yield data_to_yield
-
-
     except Exception as e:
         traceback.print_exc()
         print(f"\nERROR: {str(e)}\n".encode() )
 
+def load_header_file(path):
+    data = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            key = key.strip()
+            value = value.strip()
+            data[key] = value
+    return data
+def save_header_file(data: dict, path: str):
+    with open(path, "w", encoding="utf-8") as f:
+        for key, value in data.items():
+            # if value is a list → join with commas
+            if isinstance(value, list):
+                line = f"{key}: {','.join(map(str, value))}"
+            else:
+                line = f"{key}: {value}"
+            f.write(line + "\n")
+
+    return os.path.getsize(path)
+def split_file_into_two(file_path, name1, size1, name2, out_dir):
+    """
+    Split file into two parts:
+    - part1 = first size1 bytes
+    - part2 = remaining bytes
+    """
+    path1 = os.path.join(out_dir, name1)
+    path2 = os.path.join(out_dir, name2)
+
+    written = 0
+
+    with open(file_path, "rb") as fin, \
+         open(path1, "wb") as f1, \
+         open(path2, "wb") as f2:
+
+        # ---- PART 1 (size1 bytes) ----
+        while written < size1:
+            chunk = fin.read(min(65536, size1 - written))
+            if not chunk:
+                break
+            f1.write(chunk)
+            written += len(chunk)
+
+        # ---- PART 2 (rest of file) ----
+        while True:
+            chunk = fin.read(65536)
+            if not chunk:
+                break
+            f2.write(chunk)
+
+    return path1, path2
+
 @app.route("/fetch_api_2", methods=["POST", "PUT" , "GET"])
 def fetch_api_2():
+    utc_time_now = int(time.time())
+    header_up     = "header_up"
 
-    output_path = os.path.join( plist.directory_path , f"stream.p.{uuid.uuid4()}" )
+    body_size = int( request.headers.get("bsize"  , "0") )
+    head_size = int( request.headers.get("hsize", "0") )
+
+    output_path   = os.path.join( plist.directory_path , f"stream.p.{uuid.uuid4()}" )
+    output_path_h = os.path.join( plist.directory_path , header_up )
+
     size = stream_to_file(request.stream , output_path )
 
-    client_names , client_sizes = parse_client_data( request.headers.get("clientfilename", "") , request.headers.get("clientfilesize", "") )
+    _server                = request.headers.get("servername", "")
+    online                 = request.headers.get("online", str(utc_time_now - 15) )
+    clientfilename         = request.headers.get("clientfilename", "")
+    clientfilesize         = request.headers.get("clientfilesize", "")
+    clientfilesizeoriginal = request.headers.get("clientfilesizeoriginal", "")
+    if head_size > 0:
+        body_path , header_path = split_file_into_two(output_path, "stream_body", body_size, "stream_head", plist.directory_path )
+        print(f"body:{os.path.getsize(body_path)} head:{os.path.getsize(header_path)} ")
+        header_dict            = load_header_file(header_path);
+        clientfilename         = header_dict.get("clientfilename","")
+        clientfilesize         = header_dict.get("clientfilesize","")
+        clientfilesizeoriginal = header_dict.get("clientfilesizeoriginal","")
+        online                 = header_dict.get("online",online)
+        _server                = header_dict.get("servername","")
+
+    online = int(float(online))
+    client_names , client_sizes = parse_client_data( clientfilename , clientfilesize )
     split_and_save_file(client_names , client_sizes , output_path , plist.directory_path)
     utc_time_now = int(time.time())+1
     if os.path.exists(output_path):
         os.remove(output_path)
 
     #ANY YIELD(BYTES ONLY) THAT THE SERVER NEED TO SEND TO CLIENT(MUST BE RECORDED)
-    data_to_yield = plist.run_tasks().encode("utf-8")
+    data_to_yield = ""
+    if _server != "":
+        data_to_yield = plist.run_tasks(utc_time_now,_server).encode("utf-8")
 
-    server_names , server_sizes  = plist.getFiles()
+    server_names , server_sizes  = plist.getFiles(online)
+
+    server_bsize = sum(server_sizes) + len(data_to_yield)
+    header = {}
+    header["clientfilesizeoriginal"]    = clientfilesizeoriginal
+    header["clientfilesize"]            = clientfilesize
+    header["clientfilename"]            = clientfilename
+    header["serverfilename"]            = ",".join(server_names + ["server_run_tasks"] )
+    header["serverfilesize"]            = ",".join(map(str, server_sizes + [len(data_to_yield)] ))
+    header["down_stream_size_client"]   = size
+    header["down_stream_size_server"]   = server_bsize
+
+    server_hsize = save_header_file(header,output_path_h)
+    server_names.append(header_up)
+    server_sizes.append(server_hsize)
 
     r = Response(
         stream_with_context(safe_stream(server_names.copy() , data_to_yield )),
         mimetype="application/octet-stream",
         direct_passthrough=True
     )
-    server_names.append("server_run_tasks")
-    server_sizes.append( len(data_to_yield) )
+    r.headers["serveronline"] = str(utc_time_now)
+    r.headers["bsize"] = str(server_bsize)
+    r.headers["hsize"] = str(server_hsize)
+    r.headers["rsize"] = str(size)
 
-    r.headers["clientfilesizeoriginal"] = request.headers.get("clientfilesizeoriginal", "")
-    r.headers["clientfilesize"] = request.headers.get("clientfilesize", "")
-    r.headers["clientfilename"] = request.headers.get("clientfilename", "")
-
-    r.headers["serverfilename"] = ",".join(server_names)
-    r.headers["serverfilesize"] = ",".join(map(str, server_sizes))
-    r.headers["down_stream_size_client"] = size
-    r.headers["down_stream_size_server"] = sum(server_sizes)
-    r.headers["serveronline"] = utc_time_now
     return r
 # @app.route("/fetch_api_23", methods=["POST","PUT"])
 # def fetch_api_23():

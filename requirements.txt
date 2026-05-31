@@ -1,13 +1,14 @@
-#Flask==3.0.3
-sortedcontainers==2.4.0
-zstandard==0.22.0
-#gunicorn==21.2.0
-#websockets
-#flask-socketio
-eventlet
-
+# Core system (compatible stack for socket.io-client-cpp)
 Flask==2.2.5
+Werkzeug==2.2.3
+
 flask-socketio==4.3.2
 python-socketio==4.6.1
 python-engineio==3.13.2
+
+eventlet==0.33.3
 gunicorn==21.2.0
+
+sortedcontainers==2.4.0
+zstandard==0.22.0
+websockets

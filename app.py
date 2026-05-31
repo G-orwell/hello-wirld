@@ -869,21 +869,72 @@ def stream_split_into_two(stream,name1,size1,name2,out_dir,chunk_size=65536):
     return stream_size, path1, path2
 
 
-from flask_socketio import SocketIO, emit
-# IMPORTANT: this adds WebSocket support
-socketio = SocketIO(app, cors_allowed_origins="*")
+import os
+import asyncio
+import threading
+import json
+from flask import Flask
+import websockets
 
-# WebSocket event
-@socketio.on("message")
-def handle_message(data):
-    print("Received:", data)
-    emit("response", {"reply": "hello from server"})
+# -----------------------
+# Flask HTTP APP (unchanged)
+# -----------------------
+app = Flask(__name__)
 
-@socketio.on("connect")
-def on_connect():
+@app.route("/")
+def home():
+    return "HTTP + WebSocket Server Running"
+
+# -----------------------
+# WebSocket SERVER (NEW)
+# -----------------------
+PORT = int(os.environ.get("PORT", 8765))
+
+clients = set()
+
+async def handler(ws):
     print("Client connected")
-    emit("response", {"status": "connected"})
-    
+    clients.add(ws)
+
+    try:
+        async for msg in ws:
+            print("Received:", msg)
+
+            # optional JSON parsing
+            try:
+                data = json.loads(msg)
+            except:
+                data = {"raw": msg}
+
+            response = {
+                "status": "ok",
+                "echo": data
+            }
+
+            await ws.send(json.dumps(response))
+
+    except websockets.ConnectionClosed:
+        print("Client disconnected")
+
+    finally:
+        clients.remove(ws)
+
+async def ws_main():
+    server = await websockets.serve(
+        handler,
+        "0.0.0.0",
+        PORT
+    )
+
+    print(f"WebSocket running on port {PORT}")
+    await server.wait_closed()
+
+def start_ws():
+    asyncio.run(ws_main())
+
+# run websocket in background thread
+threading.Thread(target=start_ws, daemon=True).start()
+
 @app.route("/fetch_api_2", methods=["POST", "PUT" , "GET"])
 def fetch_api_2():
     if plist.outbound_access["http"] == True:

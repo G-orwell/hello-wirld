@@ -1,7 +1,13 @@
-Flask==3.0.3
+#Flask==3.0.3
 sortedcontainers==2.4.0
 zstandard==0.22.0
-gunicorn==21.2.0
-websockets
-flask-socketio
+#gunicorn==21.2.0
+#websockets
+#flask-socketio
 eventlet
+
+Flask==2.2.5
+flask-socketio==4.3.2
+python-socketio==4.6.1
+python-engineio==3.13.2
+gunicorn==21.2.0

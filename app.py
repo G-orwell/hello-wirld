@@ -1,17 +1,33 @@
-from flask import Flask
-from flask_socketio import SocketIO, emit
+import asyncio
+import os
+import websockets
 
-app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+clients = set()
 
-@socketio.on("connect")
-def connect():
-    print("client connected")
-    emit("message", "hello from server")
+async def handler(websocket):
+    print("Client connected")
+    clients.add(websocket)
 
-@socketio.on("message")
-def handle(msg):
-    print("received:", msg)
-    emit("message", "echo: " + msg)
+    try:
+        await websocket.send("hello from python server")
 
-socketio.run(app, host="0.0.0.0", port=5000)
+        async for message in websocket:
+            print("Received:", message)
+            await websocket.send(f"echo: {message}")
+
+    except websockets.exceptions.ConnectionClosed:
+        print("Client disconnected")
+
+    finally:
+        clients.remove(websocket)
+
+async def main():
+    port = int(os.environ.get("PORT", 8765))
+
+    print(f"Server running on 0.0.0.0:{port}")
+
+    async with websockets.serve(handler, "0.0.0.0", port):
+        await asyncio.Future()
+
+if __name__ == "__main__":
+    asyncio.run(main())

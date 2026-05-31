@@ -3,3 +3,5 @@ sortedcontainers==2.4.0
 zstandard==0.22.0
 gunicorn==21.2.0
 websockets
+flask-socketio
+eventlet

@@ -1,28 +1,35 @@
-from flask import Flask
-from flask_socketio import SocketIO, send, emit
+import socketio
+from fastapi import FastAPI
 
-app = Flask(__name__)
-# # socketio = SocketIO(app, cors_allowed_origins="*")
-# socketio = SocketIO(
-#     app,
-#     cors_allowed_origins="*",
-#     logger=True,
-#     engineio_logger=True
-# )
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
-@socketio.on("connect")
-def handle_connect():
-    print("Client connected")
-    send("hello from Flask-SocketIO server")
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    cors_allowed_origins="*"
+)
 
-@socketio.on("message")
-def handle_message(msg):
-    print("Received:", msg)
-    send(f"echo: {msg}")
+app = FastAPI()
+socket_app = socketio.ASGIApp(sio, app)
 
-@socketio.on("disconnect")
-def handle_disconnect():
-    print("Client disconnected")
+@sio.event
+async def connect(sid, environ, auth):
+    print("Connected:", sid)
 
-if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=10000)
+    # Send a Socket.IO event
+    await sio.emit("message", {"text": "hello from render"}, to=sid)
+
+@sio.event
+async def disconnect(sid):
+    print("Disconnected:", sid)
+
+@sio.event
+async def message(sid, data):
+    print("Received:", data)
+
+    await sio.emit(
+        "message",
+        {"echo": data},
+        to=sid
+    )
+
+@app.get("/")
+async def root():
+    return {"status": "ok"}

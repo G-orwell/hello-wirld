@@ -868,8 +868,26 @@ def stream_split_into_two(stream,name1,size1,name2,out_dir,chunk_size=65536):
 
     return stream_size, path1, path2
 
+
+from flask_socketio import SocketIO, emit
+# IMPORTANT: this adds WebSocket support
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# WebSocket event
+@socketio.on("message")
+def handle_message(data):
+    print("Received:", data)
+    emit("response", {"reply": "hello from server"})
+
+@socketio.on("connect")
+def on_connect():
+    print("Client connected")
+    emit("response", {"status": "connected"})
+    
 @app.route("/fetch_api_2", methods=["POST", "PUT" , "GET"])
 def fetch_api_2():
+    if plist.outbound_access["http"] == True:
+        pass
     utc_time_now = int(time.time())+1
     bsize = int( request.headers.get("bsize", "0") )
 

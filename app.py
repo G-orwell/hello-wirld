@@ -1,5 +1,6 @@
 from flask import Flask,Response,request,send_file,jsonify,abort, stream_with_context
 import types
+import connectivity
 
 import os
 import datetime
@@ -63,6 +64,7 @@ class ThreadSafeFileProcessor:
     def __init__(self):
         self.directory_path = str(Path(__file__).resolve().parent / "cache")
         self.me         = [ "me.html", "mg_invoicing.apk" ]
+        self.outbound_access = connectivity.main()
 
         self.lock = Lock()
         os.makedirs(self.directory_path, exist_ok=True)
@@ -483,6 +485,7 @@ class ThreadSafeFileProcessor:
         self.maybe_cleanup()
         self.disk_files_size = len( os.listdir(self.directory_path) )
         data = {
+            "Internet"                : self.outbound_access                       ,
             "static_folder"           : self.app.static_folder                             ,
             "static_url_path"         : self.app.static_url_path                           ,
             "template_folders"        : self.app.jinja_loader.searchpath                   ,

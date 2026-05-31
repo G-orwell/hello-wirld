@@ -51,6 +51,7 @@ def main() -> None:
         print("\n✅ This process can reach the Internet.")
     else:
         print("\n❌ No outbound connectivity detected.")
+    return results
 
 
 if __name__ == "__main__":

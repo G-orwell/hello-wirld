@@ -3,12 +3,16 @@ import os
 
 app = FastAPI()
 socket_app = app
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
-    data = await ws.receive_text()
-    print("MESSAGE RECEIVED:", data)
+    print("WebSocket connected")
 
+    while True:
+        data = await ws.receive_text()
+        print("MESSAGE RECEIVED:", data)
+        
 # HTTP endpoint
 @app.post("/fetch_api_2")
 async def upload(request: Request):

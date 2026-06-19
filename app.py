@@ -64,3 +64,19 @@ async def message(sid, data):
 @app.get("/")
 async def root():
     return {"status": "ok"}
+from fastapi import Request
+
+@app.put("/fetch_api_2")
+async def fetch_api_2(request: Request):
+    print("fetch api 2 called")
+    # data = await request.body()
+
+    # with open("received.bin", "wb") as f:
+    #     f.write(data)
+
+    # print("saved", len(data))
+
+    return {
+        "ok": True,
+        "bytes": len(data)
+    }

@@ -35,8 +35,8 @@ async def ws_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            data = await websocket.receive_text()
-            print("MESSAGE RECEIVED:", data)
+            data = await websocket.receive_bytes()
+            # print("MESSAGE RECEIVED:", data)
 
             # broadcast to ALL clients
             await manager.broadcast(data)

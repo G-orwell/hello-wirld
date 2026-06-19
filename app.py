@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket
 import os
 
 app = FastAPI()
-
+socket_app = app
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()

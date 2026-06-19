@@ -9,10 +9,13 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     print("WebSocket connected")
 
-    while True:
-        data = await ws.receive_text()
-        print("MESSAGE RECEIVED:", data)
-        
+    try:
+        while True:
+            data = await ws.receive_text()
+            print("MESSAGE RECEIVED:", data)
+    except Exception as e:
+        print("DISCONNECTED:", e)
+
 # HTTP endpoint
 @app.post("/fetch_api_2")
 async def upload():

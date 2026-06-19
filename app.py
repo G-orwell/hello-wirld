@@ -33,6 +33,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 app = FastAPI()
+socket_app = app
 
 
 @app.websocket("/ws")

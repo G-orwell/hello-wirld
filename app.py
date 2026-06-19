@@ -29,13 +29,13 @@ app = FastAPI()
 socket_app = app
 
 @app.websocket("/ws")
-async def ws_endpoint(ws: WebSocket):
+async def ws_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     print("WebSocket connected")
 
     try:
         while True:
-            data = await ws.receive_text()
+            data = await websocket.receive_text()
             print("MESSAGE RECEIVED:", data)
 
             # broadcast to ALL clients

@@ -15,7 +15,7 @@ async def ws_endpoint(ws: WebSocket):
         
 # HTTP endpoint
 @app.post("/fetch_api_2")
-async def upload(request: Request):
+async def upload():
     # data = await request.body()
     # print("HTTP FILE RECEIVED:", len(data))
     # return {"status": "ok"}

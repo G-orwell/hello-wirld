@@ -78,5 +78,5 @@ async def fetch_api_2(request: Request):
 
     return {
         "ok": True,
-        "bytes": len(data)
+        "bytes": 2
     }

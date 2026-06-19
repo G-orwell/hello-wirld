@@ -3,10 +3,7 @@ from fastapi import FastAPI
 import os
 import uuid
 
-sio = socketio.AsyncServer(
-    async_mode="asgi",
-    cors_allowed_origins="*"
-)
+sio = socketio.AsyncServer(async_mode="asgi",cors_allowed_origins="*")
 
 app = FastAPI()
 socket_app = socketio.ASGIApp(sio, app)
@@ -27,10 +24,10 @@ async def disconnect(sid):
 
 @sio.event
 async def message(sid, data):
+    print("message event fired")
 
     # File upload (binary)
     if isinstance(data, bytes):
-
         filename = f"{uuid.uuid4()}.bin"
         path = os.path.join(UPLOAD_DIR, filename)
 
@@ -38,7 +35,6 @@ async def message(sid, data):
             f.write(data)
 
         print("File received:", path)
-
         await sio.emit(
             "message",
             {

@@ -30,15 +30,27 @@ class ConnectionManager:
 
     #     for d in dead:
     #         self.disconnect(d)    
-    async def broadcast_bytes(self, data: bytes, timeout: float = 2.0):
-        dead = []
-        for connection in self.active_connections:
+    
+    # async def broadcast_bytes(self, data: bytes, timeout: float = 2.0):
+    #     dead = []
+    #     for connection in self.active_connections:
+    #         try:
+    #             await asyncio.wait_for(connection.send_bytes(data), timeout=timeout)
+    #         except (asyncio.TimeoutError, Exception):
+    #             dead.append(connection)
+    #     for d in dead:
+    #         self.disconnect(d)
+    
+    async def broadcast_bytes(self, data: bytes):
+        async def send_to(conn):
             try:
-                await asyncio.wait_for(connection.send_bytes(data), timeout=timeout)
-            except (asyncio.TimeoutError, Exception):
-                dead.append(connection)
-        for d in dead:
-            self.disconnect(d)
+                await conn.send_bytes(data)
+            except Exception:
+                self.disconnect(conn)
+    
+        # Schedule all sends as independent tasks – the loop won’t block
+        for c in self.active_connections:
+            asyncio.create_task(send_to(c))
 
 manager = ConnectionManager()
 app = FastAPI()

@@ -82,10 +82,11 @@ async def ws(websocket: WebSocket):
     except WebSocketDisconnect:
 
         manager.disconnect(websocket)
-
+        
         print("DISCONNECTED")
 
     except Exception as e:
+        print("SEND FAILED:", e)
 
         manager.disconnect(websocket)
 

@@ -47,7 +47,7 @@ async def ws_endpoint(websocket: WebSocket):
             print("BYTES RECEIVED:", len(data))
 
             # broadcast raw bytes to all clients
-            await manager.broadcast_bytes(data)
+            # await manager.broadcast_bytes(data)
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

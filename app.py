@@ -71,8 +71,40 @@ manager = ConnectionManager()
 app = FastAPI()
 socket_app = app
 
-
 @app.websocket("/ws")
+async def ws_endpoint(websocket: WebSocket):
+    await websocket.accept()
+
+    print("CONNECTED")
+
+    try:
+        while True:
+            msg = await websocket.receive()
+
+            print("FULL:", msg)
+
+            if msg["type"] == "websocket.receive":
+
+                if msg.get("bytes") is not None:
+                    data = msg["bytes"]
+
+                    print(
+                        "BYTES RECEIVED",
+                        len(data)
+                    )
+
+                    await websocket.send_bytes(data)
+
+                elif msg.get("text") is not None:
+                    print(
+                        "TEXT RECEIVED",
+                        msg["text"]
+                    )
+
+    except Exception as e:
+        print("ERR", e)
+        
+@app.websocket("/ws33")
 async def ws_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     print("WebSocket connected")

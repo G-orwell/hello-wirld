@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import asyncio
 
 
 class ConnectionManager:
@@ -18,18 +19,26 @@ class ConnectionManager:
     async def send_personal_bytes(self, data: bytes, websocket: WebSocket):
         await websocket.send_bytes(data)
 
-    async def broadcast_bytes(self, data: bytes):
-        dead = []
+    # async def broadcast_bytes(self, data: bytes):
+    #     dead = []
 
+    #     for connection in self.active_connections:
+    #         try:
+    #             await connection.send_bytes(data)
+    #         except Exception:
+    #             dead.append(connection)
+
+    #     for d in dead:
+    #         self.disconnect(d)    
+    async def broadcast_bytes(self, data: bytes, timeout: float = 2.0):
+        dead = []
         for connection in self.active_connections:
             try:
-                await connection.send_bytes(data)
-            except Exception:
+                await asyncio.wait_for(connection.send_bytes(data), timeout=timeout)
+            except (asyncio.TimeoutError, Exception):
                 dead.append(connection)
-
         for d in dead:
             self.disconnect(d)
-
 
 manager = ConnectionManager()
 app = FastAPI()
@@ -47,7 +56,7 @@ async def ws_endpoint(websocket: WebSocket):
             print("BYTES RECEIVED:", len(data))
 
             # broadcast raw bytes to all clients
-            # await manager.broadcast_bytes(data)
+            await manager.broadcast_bytes(data)
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

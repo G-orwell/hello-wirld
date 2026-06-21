@@ -9,124 +9,117 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
-        print("Client connected:", len(self.active_connections))
+
+        print(
+            "Client connected:",
+            len(self.active_connections)
+        )
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-        print("Client disconnected:", len(self.active_connections))
 
-    async def send_personal_bytes(self, data: bytes, websocket: WebSocket):
-        await websocket.send_bytes(data)
+        print(
+            "Client disconnected:",
+            len(self.active_connections)
+        )
 
-    # async def broadcast_bytes(self, data: bytes):
-    #     dead = []
-
-    #     for connection in self.active_connections:
-    #         try:
-    #             await connection.send_bytes(data)
-    #         except Exception:
-    #             dead.append(connection)
-
-    #     for d in dead:
-    #         self.disconnect(d)    
-    
-    # async def broadcast_bytes(self, data: bytes, timeout: float = 2.0):
-    #     dead = []
-    #     for connection in self.active_connections:
-    #         try:
-    #             await asyncio.wait_for(connection.send_bytes(data), timeout=timeout)
-    #         except (asyncio.TimeoutError, Exception):
-    #             dead.append(connection)
-    #     for d in dead:
-    #         self.disconnect(d)
-    
-    # async def broadcast_bytes(self, data: bytes):
-    #     async def send_to(conn):
-    #         try:
-    #             await conn.send_bytes(data)
-    #         except Exception:
-    #             self.disconnect(conn)
-    
-    #     # Schedule all sends as independent tasks – the loop won’t block
-    #     for c in self.active_connections:
-    #         asyncio.create_task(send_to(c))
-    
-    async def broadcast_bytes(self, data: bytes):
+    async def broadcast_bytes(
+        self,
+        data: bytes,
+        sender=None
+    ):
         tasks = []
-    
-        for conn in self.active_connections:
-            tasks.append(self._safe_send(conn, data))
-    
-        await asyncio.gather(*tasks, return_exceptions=True)
-    
-    
-    async def _safe_send(self, conn: WebSocket, data: bytes):
+
+        for conn in list(self.active_connections):
+
+            # skip sender
+            if conn == sender:
+                continue
+
+            tasks.append(
+                self._safe_send(conn, data)
+            )
+
+        if tasks:
+            await asyncio.gather(
+                *tasks,
+                return_exceptions=True
+            )
+
+    async def _safe_send(
+        self,
+        conn: WebSocket,
+        data: bytes
+    ):
         try:
             await conn.send_bytes(data)
+
         except Exception:
             self.disconnect(conn)
 
+
 manager = ConnectionManager()
+
 app = FastAPI()
-socket_app = app
+
 
 @app.websocket("/ws")
-async def ws_endpoint(websocket: WebSocket):
-    await websocket.accept()
+async def ws(websocket: WebSocket):
 
-    print("CONNECTED")
+    await manager.connect(websocket)
 
     try:
+
         while True:
+
             msg = await websocket.receive()
 
-            print("FULL:", msg)
+            if msg["type"] != "websocket.receive":
+                continue
 
-            if msg["type"] == "websocket.receive":
+            data = None
 
-                if msg.get("bytes") is not None:
-                    data = msg["bytes"]
+            if msg.get("bytes") is not None:
 
-                    print(
-                        "BYTES RECEIVED",
-                        len(data)
-                    )
+                data = msg["bytes"]
 
-                    await websocket.send_bytes(data)
+                print(
+                    "BYTES RECEIVED:",
+                    len(data)
+                )
 
-                elif msg.get("text") is not None:
-                    print(
-                        "TEXT RECEIVED",
-                        msg["text"]
-                    )
+            elif msg.get("text") is not None:
 
-    except Exception as e:
-        print("ERR", e)
-        
-@app.websocket("/ws33")
-async def ws_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    print("WebSocket connected")
+                data = msg["text"].encode()
 
-    try:
-        while True:
-            data = await websocket.receive_bytes()
-            print("BYTES RECEIVED:", len(data))
+                print(
+                    "TEXT RECEIVED:",
+                    len(data)
+                )
 
-            # broadcast raw bytes to all clients
-            await manager.broadcast_bytes(data)
+            if data:
+                await manager.broadcast_bytes(
+                    data,
+                    sender=None
+                )
 
     except WebSocketDisconnect:
+
         manager.disconnect(websocket)
-        print("DISCONNECTED: client closed connection")
+
+        print("DISCONNECTED")
 
     except Exception as e:
+
         manager.disconnect(websocket)
-        print("DISCONNECTED (error):", e)
+
+        print("ERROR:", e)
 
 
-# HTTP endpoint (separate, clean)
-@app.api_route("/fetch_api_2", methods=["GET", "POST", "PUT"])
+@app.api_route(
+    "/fetch_api_2",
+    methods=["GET", "POST", "PUT"]
+)
 async def upload():
     return {"status": "ok"}

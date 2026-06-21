@@ -1,63 +1,38 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 import asyncio
 
-
 class ConnectionManager:
     def __init__(self):
-        self.active_connections = []
+        self.active_connections: list[tuple[WebSocket, asyncio.Lock]] = []
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections.append(websocket)
-
-        print(
-            "Client connected:",
-            len(self.active_connections)
-        )
+        lock = asyncio.Lock()
+        self.active_connections.append((websocket, lock))
+        print("Client connected:", len(self.active_connections))
 
     def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+        # Remove the first tuple whose WebSocket matches
+        self.active_connections = [
+            (ws, lock) for ws, lock in self.active_connections if ws != websocket
+        ]
+        print("Client disconnected:", len(self.active_connections))
 
-        print(
-            "Client disconnected:",
-            len(self.active_connections)
-        )
-
-    async def broadcast_bytes(
-        self,
-        data: bytes,
-        sender=None
-    ):
+    async def broadcast_bytes(self, data: bytes, sender=None):
         tasks = []
-
-        for conn in list(self.active_connections):
-
-            # skip sender
-            if conn == sender:
+        for ws, lock in list(self.active_connections):
+            if ws == sender:
                 continue
-
-            tasks.append(
-                self._safe_send(conn, data)
-            )
-
+            tasks.append(self._safe_send(ws, lock, data))
         if tasks:
-            await asyncio.gather(
-                *tasks,
-                return_exceptions=True
-            )
+            await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _safe_send(
-        self,
-        conn: WebSocket,
-        data: bytes
-    ):
+    async def _safe_send(self, ws: WebSocket, lock: asyncio.Lock, data: bytes):
         try:
-            await conn.send_bytes(data)
-
+            async with lock:
+                await ws.send_bytes(data)
         except Exception:
-            self.disconnect(conn)
-
+            self.disconnect(ws)
 
 manager = ConnectionManager()
 

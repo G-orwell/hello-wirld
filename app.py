@@ -41,16 +41,31 @@ class ConnectionManager:
     #     for d in dead:
     #         self.disconnect(d)
     
-    async def broadcast_bytes(self, data: bytes):
-        async def send_to(conn):
-            try:
-                await conn.send_bytes(data)
-            except Exception:
-                self.disconnect(conn)
+    # async def broadcast_bytes(self, data: bytes):
+    #     async def send_to(conn):
+    #         try:
+    #             await conn.send_bytes(data)
+    #         except Exception:
+    #             self.disconnect(conn)
     
-        # Schedule all sends as independent tasks – the loop won’t block
-        for c in self.active_connections:
-            asyncio.create_task(send_to(c))
+    #     # Schedule all sends as independent tasks – the loop won’t block
+    #     for c in self.active_connections:
+    #         asyncio.create_task(send_to(c))
+    
+    async def broadcast_bytes(self, data: bytes):
+        tasks = []
+    
+        for conn in self.active_connections:
+            tasks.append(self._safe_send(conn, data))
+    
+        await asyncio.gather(*tasks, return_exceptions=True)
+    
+    
+    async def _safe_send(self, conn: WebSocket, data: bytes):
+        try:
+            await conn.send_bytes(data)
+        except Exception:
+            self.disconnect(conn)
 
 manager = ConnectionManager()
 app = FastAPI()

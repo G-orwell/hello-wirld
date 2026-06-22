@@ -76,7 +76,7 @@ async def ws(websocket: WebSocket):
             if data:
                 await manager.broadcast_bytes(
                     data,
-                    sender=websocket
+                    sender=None
                 )
 
     except WebSocketDisconnect:
@@ -99,3 +99,4 @@ async def ws(websocket: WebSocket):
 )
 async def upload():
     return {"status": "ok"}
+    

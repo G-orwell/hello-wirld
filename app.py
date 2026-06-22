@@ -76,7 +76,7 @@ async def ws(websocket: WebSocket):
             if data:
                 await manager.broadcast_bytes(
                     data,
-                    sender=None
+                    sender=websocket
                 )
 
     except WebSocketDisconnect:

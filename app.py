@@ -111,8 +111,8 @@ class ConnectionManager:
         """
         async with self._lock:
             for ws, queue in self._queues.items():
-                if ws is sender:
-                    continue
+                # if ws is sender:
+                #     continue
                 try:
                     queue.put_nowait((msg_type, data))
                 except asyncio.QueueFull:

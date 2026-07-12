@@ -260,7 +260,7 @@ async def mpesa_callback(request: Request):
 
     new_flat_dict = {}
     for k , v in flat_dict.items():
-        kk = k.replace("result_","")
+        kk = k.lower().replace("result_","")
         new_flat_dict[ kk ] = v
         
     if "originatorconversationid" in flat_dict:

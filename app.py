@@ -258,16 +258,14 @@ async def mpesa_callback(request: Request):
         kk = k.lower().replace("result_","")
         new_flat_dict[ kk ] = v
         
-    if "originatorconversationid" in flat_dict:
+    if "originatorconversationid" in new_flat_dict:
         new_flat_dict["uu_id"] = new_flat_dict["originatorconversationid"]
-    elif "merchantrequestid" in flat_dict:
+    elif "merchantrequestid" in new_flat_dict:
         new_flat_dict["uu_id"] = new_flat_dict["merchantrequestid"]
     
         
     sql = dict_to_sql_insert(new_flat_dict,"mpesa")
     await manager.broadcast(None, msg_type="text", data=sql)
-
-    print(result)
 
     return {
         "ResultCode": 0,

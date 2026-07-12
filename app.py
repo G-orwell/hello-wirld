@@ -205,28 +205,59 @@ def dict_to_sql_insert(data: dict, table_name: str, conflict_column: str = "uu_i
         # If only the conflict column exists, just do a plain INSERT
         return f'INSERT INTO {table_name} ({columns}) VALUES ({values_str});'
 
+
+def flatten_json(data, parent_key='', sep='.', array_style='indexed'):
+    """
+    Recursively flatten a JSON object (dict or list) into a single-level dict.
+
+    :param data:        The JSON to flatten (dict or list)
+    :param parent_key:  Used internally for recursion
+    :param sep:         Separator between nested keys (default '.')
+    :param array_style: How to handle arrays:
+                        'indexed' -> uses index in key (e.g., items.0.name)
+                        'merged'  -> flattens each item without index (dangerous if keys collide)
+                        'skip'    -> ignores arrays (not recommended)
+    :return:            Flat dictionary
+    """
+    items = {}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, (dict, list)):
+                items.update(flatten_json(v, new_key, sep, array_style))
+            else:
+                items[new_key] = v
+    elif isinstance(data, list):
+        if array_style == 'indexed':
+            for idx, item in enumerate(data):
+                new_key = f"{parent_key}{sep}{idx}" if parent_key else str(idx)
+                if isinstance(item, (dict, list)):
+                    items.update(flatten_json(item, new_key, sep, array_style))
+                else:
+                    items[new_key] = item
+        elif array_style == 'merged':
+            for item in data:
+                if isinstance(item, (dict, list)):
+                    items.update(flatten_json(item, parent_key, sep, array_style))
+                else:
+                    # For primitive values in arrays, we use a special key or ignore?
+                    # Here we add them with a suffix to avoid collisions.
+                    items[f"{parent_key}_item"] = item  # Not ideal; you may want to collect them as list
+        # else 'skip' -> do nothing
+    return items
+
 @app.post("/mpesa/callback")
 async def mpesa_callback(request: Request):
 
     data = await request.json()
-
-    callback = data["Body"]["stkCallback"]
-
-    result = {
-        "uu_id":callback.get("MerchantRequestID"),
-        "MerchantRequestID": callback.get("MerchantRequestID"),
-        "CheckoutRequestID": callback.get("CheckoutRequestID"),
-        "ResultCode": callback.get("ResultCode"),
-        "ResultDesc": callback.get("ResultDesc"),
-    }
-
-    # Merge CallbackMetadata into the dictionary
-    result.update({
-        item["Name"]: item.get("Value")
-        for item in callback.get("CallbackMetadata", {}).get("Item", [])
-    })
-
-    sql = dict_to_sql_insert(result,"mpesa_api")
+    try:
+        full_data = await request.json()
+    except json.JSONDecodeError:
+        return {"ResultCode": 1, "ResultDesc": "Invalid JSON"}
+        
+    flat_dict = flatten_json(full_data, array_style='merged')
+        
+    sql = dict_to_sql_insert(flat_dict,"mpesa_api")
     await manager.broadcast(None, msg_type="text", data=sql)
 
     print(result)

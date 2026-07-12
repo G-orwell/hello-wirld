@@ -259,7 +259,7 @@ async def mpesa_callback(request: Request):
     flat_dict = flatten_json(full_data,sep='_',array_style='merged')
 
     new_flat_dict = {}
-    for k , v in flat_dict:
+    for k , v in flat_dict.items():
         kk = k.replace("result_","")
         new_flat_dict[ kk ] = v
         

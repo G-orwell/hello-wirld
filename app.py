@@ -110,7 +110,7 @@ class ConnectionManager:
         """
         async with self._lock:
             for ws, queue in self._queues.items():
-                # if ws is sender:
+                # if wss is sender:
                 #     continue
                 try:
                     queue.put_nowait((msg_type, data))
@@ -166,7 +166,44 @@ async def upload():
     return {"status": "ok"}
 
 
+def dict_to_sql_insert(data: dict, table_name: str, conflict_column: str = "uu_id") -> str:
+    """
+    Generate an SQLite INSERT ... ON CONFLICT ... DO UPDATE statement.
+    All values are converted to strings and single quotes are escaped as ''.
 
+    Args:
+        data: dict where keys are column names and values are the data.
+        table_name: str, name of the target table.
+        conflict_column: str, the unique column that triggers the conflict.
+
+    Returns:
+        str: SQLite upsert query with all values as string literals.
+    """
+    # Column names – quoted for safety (reserved words, spaces, etc.)
+    columns = ', '.join(f'"{col}"' for col in data.keys())
+
+    # Values: EVERYTHING is forced to a string, then quoted and escaped
+    values = []
+    for val in data.values():
+        # Convert to string, then escape single quotes by doubling them
+        escaped = str(val).replace("'", "''")
+        values.append(f"'{escaped}'")
+    values_str = ', '.join(values)
+
+    # Build the SET clause: simple identifiers without quotes (as you preferred)
+    set_clauses = []
+    for col in data.keys():
+        if col != conflict_column:  # skip updating the conflict column itself
+            set_clauses.append(f"{col} = excluded.{col}")
+        # (Remove the 'if' if you also want to update the conflict column)
+    set_str = ', '.join(set_clauses)
+
+    if set_str:
+        return (f'INSERT INTO {table_name} ({columns}) VALUES ({values_str}) '
+                f'ON CONFLICT({conflict_column}) DO UPDATE SET {set_str};')
+    else:
+        # If only the conflict column exists, just do a plain INSERT
+        return f'INSERT INTO {table_name} ({columns}) VALUES ({values_str});'
 
 @app.post("/mpesa/callback")
 async def mpesa_callback(request: Request):
@@ -176,6 +213,7 @@ async def mpesa_callback(request: Request):
     callback = data["Body"]["stkCallback"]
 
     result = {
+        "uu_id":callback.get("MerchantRequestID"),
         "MerchantRequestID": callback.get("MerchantRequestID"),
         "CheckoutRequestID": callback.get("CheckoutRequestID"),
         "ResultCode": callback.get("ResultCode"),
@@ -187,6 +225,9 @@ async def mpesa_callback(request: Request):
         item["Name"]: item.get("Value")
         for item in callback.get("CallbackMetadata", {}).get("Item", [])
     })
+
+    sql = dict_to_sql_insert(result,"mpesa_api")
+    await manager.broadcast(None, msg_type="text", data=sql)
 
     print(result)
 

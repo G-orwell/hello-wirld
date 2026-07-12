@@ -180,7 +180,7 @@ def dict_to_sql_insert(data: dict, table_name: str, conflict_column: str = "uu_i
         str: SQLite upsert query with all values as string literals.
     """
     # Column names – quoted for safety (reserved words, spaces, etc.)
-    columns = ', '.join(f'"{col}"' for col in data.keys())
+    columns = ', '.join(f'"{col.lower()}"' for col in data.keys())
 
     # Values: EVERYTHING is forced to a string, then quoted and escaped
     values = []
@@ -194,7 +194,7 @@ def dict_to_sql_insert(data: dict, table_name: str, conflict_column: str = "uu_i
     set_clauses = []
     for col in data.keys():
         if col != conflict_column:  # skip updating the conflict column itself
-            set_clauses.append(f"{col} = excluded.{col}")
+            set_clauses.append(f"{col.lower()} = excluded.{col.lower()}")
         # (Remove the 'if' if you also want to update the conflict column)
     set_str = ', '.join(set_clauses)
 
@@ -258,7 +258,7 @@ async def mpesa_callback(request: Request):
         
     flat_dict = flatten_json(full_data,sep='_',array_style='merged')
         
-    sql = dict_to_sql_insert(flat_dict,"mpesa_api")
+    sql = dict_to_sql_insert(flat_dict,"mpesa")
     await manager.broadcast(None, msg_type="text", data=sql)
 
     print(result)

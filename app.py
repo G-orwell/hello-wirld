@@ -198,13 +198,8 @@ def dict_to_sql_insert(data: dict, table_name: str, conflict_column: str = "uu_i
         # (Remove the 'if' if you also want to update the conflict column)
     set_str = ', '.join(set_clauses)
 
-    if set_str:
-        return (f'INSERT INTO {table_name} ({columns}) VALUES ({values_str}) '
-                f'ON CONFLICT({conflict_column}) DO UPDATE SET {set_str};')
-    else:
-        # If only the conflict column exists, just do a plain INSERT
-        return f'INSERT INTO {table_name} ({columns}) VALUES ({values_str});'
-
+    return (f'INSERT INTO {table_name} ({columns}) VALUES ({values_str}) '
+            f'ON CONFLICT({conflict_column}) DO UPDATE SET {set_str};')
 
 def flatten_json(data, parent_key='', sep='.', array_style='indexed'):
     """
@@ -265,7 +260,7 @@ async def mpesa_callback(request: Request):
         
     if "originatorconversationid" in flat_dict:
         new_flat_dict["uu_id"] = new_flat_dict["originatorconversationid"]
-    if "merchantrequestid" in flat_dict:
+    elif "merchantrequestid" in flat_dict:
         new_flat_dict["uu_id"] = new_flat_dict["merchantrequestid"]
     
         

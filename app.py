@@ -2,8 +2,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 # ------------------------------------------------------------
 # Structured logging
 # ------------------------------------------------------------
@@ -167,9 +166,12 @@ async def upload():
     return {"status": "ok"}
 
 
-@app.api_route("/mpesa/callback", methods=["POST"])
-def mpesa_callback():
-    data = request.get_json(force=True)
+
+
+@app.post("/mpesa/callback")
+async def mpesa_callback(request: Request):
+
+    data = await request.json()
 
     callback = data["Body"]["stkCallback"]
 
@@ -180,7 +182,7 @@ def mpesa_callback():
         "ResultDesc": callback.get("ResultDesc"),
     }
 
-    # Add CallbackMetadata items (if present)
+    # Merge CallbackMetadata into the dictionary
     result.update({
         item["Name"]: item.get("Value")
         for item in callback.get("CallbackMetadata", {}).get("Item", [])
@@ -188,4 +190,7 @@ def mpesa_callback():
 
     print(result)
 
-    return {"ResultCode": 0, "ResultDesc": "Accepted"}
+    return {
+        "ResultCode": 0,
+        "ResultDesc": "Accepted"
+    }

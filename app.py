@@ -165,3 +165,27 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 @app.api_route("/fetch_api_2", methods=["GET", "POST", "PUT"])
 async def upload():
     return {"status": "ok"}
+
+
+@app.api_route("/mpesa/callback", methods=["POST"])
+def mpesa_callback():
+    data = request.get_json(force=True)
+
+    callback = data["Body"]["stkCallback"]
+
+    result = {
+        "MerchantRequestID": callback.get("MerchantRequestID"),
+        "CheckoutRequestID": callback.get("CheckoutRequestID"),
+        "ResultCode": callback.get("ResultCode"),
+        "ResultDesc": callback.get("ResultDesc"),
+    }
+
+    # Add CallbackMetadata items (if present)
+    result.update({
+        item["Name"]: item.get("Value")
+        for item in callback.get("CallbackMetadata", {}).get("Item", [])
+    })
+
+    print(result)
+
+    return {"ResultCode": 0, "ResultDesc": "Accepted"}

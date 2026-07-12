@@ -256,7 +256,7 @@ async def mpesa_callback(request: Request):
         print(f"Error : decoding {e}")
         return {"ResultCode": 1, "ResultDesc": "Invalid JSON"}
         
-    flat_dict = flatten_json(full_data, array_style='merged')
+    flat_dict = flatten_json(full_data,sep='_',array_style='merged')
         
     sql = dict_to_sql_insert(flat_dict,"mpesa_api")
     await manager.broadcast(None, msg_type="text", data=sql)

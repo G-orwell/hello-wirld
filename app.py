@@ -252,7 +252,8 @@ async def mpesa_callback(request: Request):
     data = await request.json()
     try:
         full_data = await request.json()
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"Error : decoding {e}")
         return {"ResultCode": 1, "ResultDesc": "Invalid JSON"}
         
     flat_dict = flatten_json(full_data, array_style='merged')

@@ -257,6 +257,11 @@ async def mpesa_callback(request: Request):
         return {"ResultCode": 1, "ResultDesc": "Invalid JSON"}
         
     flat_dict = flatten_json(full_data,sep='_',array_style='merged')
+    if "result_originatorconversationid" in flat_dict:
+        flat_dict["uu_id"] = flat_dict["result_originatorconversationid"]
+    if "result_merchantrequestid" in flat_dict:
+        flat_dict["uu_id"] = flat_dict["result_merchantrequestid"]
+    
         
     sql = dict_to_sql_insert(flat_dict,"mpesa")
     await manager.broadcast(None, msg_type="text", data=sql)

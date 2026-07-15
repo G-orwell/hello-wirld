@@ -256,6 +256,7 @@ async def mpesa_callback(request: Request):
     new_flat_dict = {}
     for k , v in flat_dict.items():
         kk = k.lower().replace("result_","")
+        kk = kk.replace("body_stkcallback_merchantrequestid","")
         new_flat_dict[ kk ] = v
         
     if "originatorconversationid" in new_flat_dict:

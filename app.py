@@ -1,6 +1,8 @@
 import asyncio
 import logging
 from typing import Optional
+import uuid
+import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 # ------------------------------------------------------------
@@ -329,3 +331,80 @@ async def mpesa_callback(request: Request):
         "ResultCode": 0,
         "ResultDesc": "Accepted"
     }
+
+import re
+class my_server:
+    machine_id = 1
+    sequence = 0
+    last_ts = 0
+    
+    def is_safe_column_name(self, name):
+        # Allow only letters, numbers, underscores; avoid SQL keywords (optional)
+        return re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name) is not None
+    def generate_id(self):
+        global sequence, last_ts
+    
+        ts = int(time.time() * 1000)
+    
+        if ts == last_ts:
+            sequence += 1
+        else:
+            sequence = 0
+    
+        last_ts = ts
+    
+        id = ((ts << 22) | (machine_id << 12) | sequence)
+        return id
+    
+    def build_insert(self,data):
+        timestamp = int(float(time.time()))
+        data["uu_id"] = uuid.uuid4()
+        data["created_at"] = timestamp
+        data["updated_at"] = timestamp
+        data["id"] = self.generate_id()
+        data["online_post"] = "1"
+    
+        columns = []
+        values  = []
+        table_name = 'user'
+    
+        for key, value in data.items():
+            if key in ["cl_name","table_name","curr_url"]:
+                if key in ["cl_name","table_name"]:
+                    table_name = value
+                continue
+            if self.is_safe_column_name(key) == False:
+                continue
+            columns.append(key)
+            value = str(value)
+    
+            value = value.replace("'", "''")
+            values.append(f"'{value}'")
+    
+        columns_str = ", ".join(columns)
+        values_str = ", ".join(values)
+        sql = "\n".join(f"\nALTER TABLE {table_name} ADD COLUMN {col} TEXT" for col in columns)
+        sql += f"\n INSERT INTO {table_name} ({columns_str}) VALUES ({values_str});"
+        return sql
+
+
+# @app.route("/post",methods=['GET','POST','PUT'])
+# def _post():
+@app.post("/post")
+async def _post(request: Request):
+    form = {}
+    form.update( request.form.to_dict() )
+    form.update( request.args.to_dict() )
+
+    plist = my_server()
+    query = plist.build_insert( form)
+    # binary = query.encode("utf-8")
+    # plist.saveFile(binary,"sql_post",120)
+    await manager.broadcast(None, msg_type="text", data=query)
+
+    return {
+        "ResultCode": 0,
+        "ResultDesc": "Accepted"
+    }
+    return query
+

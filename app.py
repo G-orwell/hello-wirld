@@ -244,89 +244,57 @@ def flatten_json(data, parent_key="", sep=".", array_style="indexed"):
     """
     Flatten a JSON object into a single-level dictionary.
 
-    Features:
-    - Nested dictionaries
-    - Arrays
-    - Special handling of:
-          [{"Name": ..., "Value": ...}]
-      which becomes:
-          parent.Name = Value
+    Enhanced handling for lists of dicts with a 'Name' key:
+        [{"Name": "A", "Value": 1}, {"Name": "B"}]
+    becomes:
+        parent.A = 1
+        parent.B = None
+    and extra fields are flattened under the same name.
     """
-
     items = {}
 
     def _flatten(obj, prefix):
-
-        # ---------------- Dictionary ----------------
+        # ---------- Dictionary ----------
         if isinstance(obj, dict):
-
             for key, value in obj.items():
-
                 new_key = f"{prefix}{sep}{key}" if prefix else key
-
                 _flatten(value, new_key)
 
-        # ---------------- List ----------------
+        # ---------- List ----------
         elif isinstance(obj, list):
-
-            # Detect [{"Name":..., "Value":...}, ...]
-            if (
-                obj
-                and all(
-                    isinstance(x, dict)
-                    and "Name" in x
-                    and "Value" in x
-                    for x in obj
-                )
-            ):
-
+            # Special: list of dicts all having a "Name" key
+            if (obj and all(isinstance(x, dict) and "Name" in x for x in obj)):
                 for element in obj:
-
                     name = str(element["Name"])
+                    # Main value: use "Value" if present, else None
+                    main_value = element.get("Value")  # None if missing
+                    key = f"{prefix}{sep}{name}" if prefix else name
+                    items[key] = main_value
 
-                    items[f"{prefix}{sep}{name}" if prefix else name] = element["Value"]
-
-                    # Preserve any extra fields besides Name/Value
-                    for key, value in element.items():
-
-                        if key in ("Name", "Value"):
+                    # Flatten any extra fields (other than Name/Value)
+                    for k, v in element.items():
+                        if k in ("Name", "Value"):
                             continue
+                        extra_key = f"{key}{sep}{k}" if prefix else f"{name}{sep}{k}"
+                        _flatten(v, extra_key)
+                return   # done with this list
 
-                        new_key = (
-                            f"{prefix}{sep}{name}{sep}{key}"
-                            if prefix
-                            else f"{name}{sep}{key}"
-                        )
-
-                        _flatten(value, new_key)
-
-                return
-
-            # Normal arrays
+            # Normal arrays: use array_style
             if array_style == "indexed":
-
-                for index, element in enumerate(obj):
-
-                    new_key = f"{prefix}{sep}{index}" if prefix else str(index)
-
+                for idx, element in enumerate(obj):
+                    new_key = f"{prefix}{sep}{idx}" if prefix else str(idx)
                     _flatten(element, new_key)
-
             elif array_style == "merged":
-
                 for element in obj:
                     _flatten(element, prefix)
+            # else "skip" -> ignore
 
-            # skip -> ignore array
-
-        # ---------------- Primitive ----------------
+        # ---------- Primitive ----------
         else:
-
             items[prefix] = obj
 
     _flatten(data, parent_key)
-
     return items
-
 
 @app.post("/mpesa/callback")
 async def mpesa_callback(request: Request):
@@ -337,13 +305,14 @@ async def mpesa_callback(request: Request):
     except json.JSONDecodeError as e:
         print(f"Error : decoding {e}")
         return {"ResultCode": 1, "ResultDesc": "Invalid JSON"}
-    print("json == ",data)
+    # print("json == ",data)
     flat_dict = flatten_json(full_data,sep='_',array_style='merged')
-    print("flat_dict == ",flat_dict)
+    # print("flat_dict == ",flat_dict)
 
     new_flat_dict = {}
     for k , v in flat_dict.items():
         kk = k.lower().replace("result_","")
+        kk = kk.replace("body_stkcallback_callbackmetadata_item_","")
         kk = kk.replace("body_stkcallback_","")
         new_flat_dict[ kk ] = v
         

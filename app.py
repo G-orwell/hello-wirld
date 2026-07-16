@@ -341,19 +341,17 @@ class my_server:
     def is_safe_column_name(self, name):
         # Allow only letters, numbers, underscores; avoid SQL keywords (optional)
         return re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name) is not None
-    def generate_id(self):
-        global sequence, last_ts
-    
+    def generate_id(self):    
         ts = int(time.time() * 1000)
     
-        if ts == last_ts:
-            sequence += 1
+        if ts == self.last_ts:
+            self.sequence += 1
         else:
-            sequence = 0
+            self.sequence = 0
     
-        last_ts = ts
+        self.last_ts = ts
     
-        id = ((ts << 22) | (machine_id << 12) | sequence)
+        id = ((ts << 22) | (self.machine_id << 12) | self.sequence)
         return id
     
     def build_insert(self,data):

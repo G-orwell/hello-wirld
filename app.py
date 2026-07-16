@@ -390,11 +390,18 @@ class my_server:
 
 # @app.route("/post",methods=['GET','POST','PUT'])
 # def _post():
-@app.post("/post")
-async def _post(request: Request):
+
+@app.api_route("/post", methods=["GET", "POST"])
+async def post(request: Request):
     form = {}
-    form.update( request.form.to_dict() )
-    form.update( request.args.to_dict() )
+
+    if request.method == "POST":
+        form = dict(await request.form())
+    else:
+        form = dict(request.query_params)
+
+    # form.update( request.form.to_dict() )
+    # form.update( request.args.to_dict() )
 
     plist = my_server()
     query = plist.build_insert( form)

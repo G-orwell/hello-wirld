@@ -337,8 +337,9 @@ async def mpesa_callback(request: Request):
     except json.JSONDecodeError as e:
         print(f"Error : decoding {e}")
         return {"ResultCode": 1, "ResultDesc": "Invalid JSON"}
-        
+    print("json == ",data)
     flat_dict = flatten_json(full_data,sep='_',array_style='merged')
+    print("flat_dict == ",flat_dict)
 
     new_flat_dict = {}
     for k , v in flat_dict.items():

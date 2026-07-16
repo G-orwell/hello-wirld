@@ -322,15 +322,11 @@ async def mpesa_callback(request: Request):
         new_flat_dict["uu_id"] = new_flat_dict["originatorconversationid"]
     elif "merchantrequestid" in new_flat_dict:
         new_flat_dict["uu_id"] = new_flat_dict["merchantrequestid"]
-    
         
     sql = dict_to_sql_insert(new_flat_dict,"mpesa")
     await manager.broadcast(None, msg_type="text", data=sql)
 
-    return {
-        "ResultCode": 0,
-        "ResultDesc": "Accepted"
-    }
+    return {"ResultCode": 0,"ResultDesc": "Accepted"}
 
 import re
 class my_server:
@@ -381,8 +377,8 @@ class my_server:
     
         columns_str = ", ".join(columns)
         values_str = ", ".join(values)
-        sql = "\n".join(f"\nALTER TABLE {table_name} ADD COLUMN {col} TEXT" for col in columns)
-        sql += f"\n INSERT INTO {table_name} ({columns_str}) VALUES ({values_str});"
+        # sql = "\n".join(f"\nALTER TABLE {table_name} ADD COLUMN {col} TEXT" for col in columns)
+        sql = f"\n INSERT INTO {table_name} ({columns_str}) VALUES ({values_str});"
         return sql
 
 
@@ -407,9 +403,8 @@ async def post(request: Request):
     # plist.saveFile(binary,"sql_post",120)
     await manager.broadcast(None, msg_type="text", data=query)
 
-    return {
-        "ResultCode": 0,
-        "ResultDesc": "Accepted"
-    }
+    return {"ResultCode": 0,"ResultDesc": "Accepted"}
+
+    
     return query
 

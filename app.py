@@ -201,7 +201,7 @@ def dict_to_sql_insert(data: dict, table_name: str, conflict_column: str = "uu_i
     return (f'INSERT INTO {table_name} ({columns}) VALUES ({values_str}) '
             f'ON CONFLICT({conflict_column}) DO UPDATE SET {set_str};')
 
-def flatten_json(data, parent_key='', sep='.', array_style='indexed'):
+def flatten_json_0(data, parent_key='', sep='.', array_style='indexed'):
     """
     Recursively flatten a JSON object (dict or list) into a single-level dict.
 
@@ -240,7 +240,89 @@ def flatten_json(data, parent_key='', sep='.', array_style='indexed'):
                     items[f"{parent_key}_item"] = item  # Not ideal; you may want to collect them as list
         # else 'skip' -> do nothing
     return items
+def flatten_json(data, parent_key="", sep=".", array_style="indexed"):
+    """
+    Recursively flatten a JSON object into a flat dictionary.
 
+    Features:
+    - Flattens nested dictionaries.
+    - Flattens arrays.
+    - Automatically converts arrays of:
+          [{"Name": X, "Value": Y}]
+      into:
+          parent.X = Y
+    - Handles arbitrary JSON.
+
+    array_style:
+        indexed -> array.0.key
+        merged  -> merge objects
+        skip    -> ignore arrays
+    """
+
+    items = {}
+
+    def _flatten(obj, prefix):
+
+        # ---------------- Dictionaries ----------------
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                new_key = f"{prefix}{sep}{k}" if prefix else k
+                _flatten(v, new_key)
+
+        # ---------------- Lists ----------------
+        elif isinstance(obj, list):
+
+            # Detect [{"Name":..., "Value":...}, ...]
+            if all(
+                isinstance(x, dict)
+                and "Name" in x
+                and "Value" in x
+                for x in obj
+            ):
+                for element in obj:
+
+                    name = str(element["Name"])
+
+                    value = element["Value"]
+
+                    items[f"{prefix}{sep}{name}" if prefix else name] = value
+
+                    # Preserve any additional fields
+                    for k, v in element.items():
+                        if k in ("Name", "Value"):
+                            continue
+
+                        extra_key = (
+                            f"{prefix}{sep}{name}{sep}{k}"
+                            if prefix else
+                            f"{name}{sep}{k}"
+                        )
+
+                        _flatten(v, extra_key)
+
+                return
+
+            # -------- Normal arrays --------
+            if array_style == "indexed":
+
+                for i, element in enumerate(obj):
+                    new_key = f"{prefix}{sep}{i}" if prefix else str(i)
+                    _flatten(element, new_key)
+
+            elif array_style == "merged":
+
+                for element in obj:
+                    _flatten(element, prefix)
+
+            # skip -> ignore array
+
+        # ---------------- Primitive values ----------------
+        else:
+            items[prefix] = obj
+
+    _flatten(data, parent_key)
+
+    return items
 @app.post("/mpesa/callback")
 async def mpesa_callback(request: Request):
 

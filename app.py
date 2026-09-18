@@ -3,6 +3,7 @@ import logging
 from typing import Optional
 import uuid
 import time
+import json
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse
@@ -419,7 +420,7 @@ async def notification(item):
 
 
         # print("business received:", row_id)
-        await manager.broadcast(None, msg_type="text", data=item)
+        await manager.broadcast(None, msg_type="text", data=json.dumps(item) )
         # --------------------------------------------------
         # Successful item
         # --------------------------------------------------

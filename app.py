@@ -5,6 +5,7 @@ import uuid
 import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import JSONResponse
 # ------------------------------------------------------------
 # Structured logging
 # ------------------------------------------------------------
@@ -408,3 +409,54 @@ async def post(request: Request):
     
     return query
 
+
+async def notification(item):
+    # Get identifiers
+    try:
+        # --------------------------------------------------
+        # Store in database
+        # --------------------------------------------------
+
+
+        # print("business received:", row_id)
+        await manager.broadcast(None, msg_type="text", data=item)
+        # --------------------------------------------------
+        # Successful item
+        # --------------------------------------------------
+        return True
+    except Exception:
+        return False
+
+
+async def json_reques_processor(request: Request,callback):
+    try:
+        data = await request.json()
+        if data is None:
+            return JSONResponse(content={"success": False,"message": "Request does not contain valid JSON"},status_code=400)
+        # MUST be an array
+        if not isinstance(data, list):
+            return JSONResponse(content={"success": False,"message": "JSON must be an array"},status_code=400)
+
+        responses = []
+        for item in data:
+            # Each element must be an object
+            if not isinstance(item, dict):
+                responses.append({"success": False,"message": "Array element must be an object"})
+                continue
+
+            responses.append({
+                "uu_id"  : item.get("uu_id"  , ""),
+                "cl_name": item.get("cl_name", ""),
+                "success": await callback(item),
+                "message": "saved in server"
+            })
+        return JSONResponse(content=responses,status_code=200)
+    except Exception:
+        app.logger.exception("Error processing /sbp request")
+        return JSONResponse(content=[{"success": False,"message": "Internal server error"}],status_code=500)
+
+    
+@app.api_route("/ws/all", methods=["POST", "PUT"])
+async def sbp_api(request: Request):
+    return await json_reques_processor(request,notification)
+    

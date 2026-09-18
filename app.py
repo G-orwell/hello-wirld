@@ -459,4 +459,8 @@ async def json_reques_processor(request: Request,callback):
 @app.api_route("/ws/all", methods=["POST", "PUT"])
 async def sbp_api(request: Request):
     return await json_reques_processor(request,notification)
+@app.api_route("/all", methods=["POST", "PUT"])
+async def all_api(request: Request):
+    return await json_reques_processor(request,notification)
+    
     
